@@ -164,7 +164,12 @@ pimcore.object.classes.data.reverseManyToManyObjectRelation = Class.create(pimco
             }
             Ext.apply(this.datax,
                 {
-                    remoteOwner: source.datax.remoteOwner
+                    remoteOwner: source.datax.remoteOwner,
+                    width: source.datax.width,
+                    height: source.datax.height,
+                    pathFormatterClass: source.datax.pathFormatterClass,
+                    ownerClassName: source.datax.ownerClassName,
+                    ownerFieldName: source.datax.ownerFieldName
                 });
         }
     }
@@ -173,5 +178,5 @@ pimcore.object.classes.data.reverseManyToManyObjectRelation = Class.create(pimco
 
 });
 
-// @TODO BC layer, to be removed in v6.0
+// @TODO BC layer, to be removed in v7.0
 pimcore.object.classes.data.nonownerobjects = pimcore.object.classes.data.reverseManyToManyObjectRelation;
