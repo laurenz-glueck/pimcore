@@ -1,36 +1,36 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin\Document;
 
 use Pimcore\Config;
 use Pimcore\Controller\Traits\ElementEditLockHelperTrait;
-use Pimcore\Event\Admin\ElementAdminStyleEvent;
 use Pimcore\Model\Document;
 use Pimcore\Web2Print\Processor;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
 
-class PrintpageControllerBase extends DocumentControllerBase
+/**
+ * @internal
+ */
+abstract class PrintpageControllerBase extends DocumentControllerBase
 {
     use ElementEditLockHelperTrait;
 
     /**
-     * @Route("/get-data-by-id", methods={"GET"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -51,14 +51,16 @@ class PrintpageControllerBase extends DocumentControllerBase
             \Pimcore\Model\Element\Editlock::lock($request->get('id'), 'document');
         }
 
-        $page = $this->getLatestVersion($page);
+        $page = clone $page;
+        $draftVersion = null;
+        $page = $this->getLatestVersion($page, $draftVersion);
 
         $page->getVersions();
         $page->getScheduledTasks();
         $page->setLocked($page->isLocked());
 
         // unset useless data
-        $page->setElements(null);
+        $page->setEditables(null);
         $page->setChildren(null);
 
         $data = $page->getObjectVars();
@@ -71,7 +73,7 @@ class PrintpageControllerBase extends DocumentControllerBase
             $data['contentMasterDocumentPath'] = $page->getContentMasterDocument()->getRealFullPath();
         }
 
-        $this->preSendDataActions($data, $page);
+        $this->preSendDataActions($data, $page, $draftVersion);
 
         if ($page->isAllowed('view')) {
             return $this->adminJson($data);
@@ -81,8 +83,6 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/save", methods={"PUT", "POST"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -116,28 +116,38 @@ class PrintpageControllerBase extends DocumentControllerBase
             //check, if to cleanup existing elements of document
             $config = Config::getWeb2PrintConfig();
             if ($config->get('generalDocumentSaveMode') == 'cleanup') {
-                $page->setElements([]);
+                $page->setEditables([]);
             }
 
             $this->setValuesToDocument($request, $page);
 
             $page->save();
 
-            $this->addAdminStyle($page, ElementAdminStyleEvent::CONTEXT_EDITOR, $treeData);
+            $treeData = $this->getTreeNodeConfig($page);
+
+            $this->handleTask($request->get('task'), $page);
 
             return $this->adminJson([
                 'success' => true,
                 'data' => [
                     'versionDate' => $page->getModificationDate(),
-                    'versionCount' => $page->getVersionCount()
+                    'versionCount' => $page->getVersionCount(),
                 ],
-                'treeData' => $treeData
+                'treeData' => $treeData,
             ]);
         } elseif ($page->isAllowed('save')) {
             $this->setValuesToDocument($request, $page);
-            $page->saveVersion();
 
-            return $this->adminJson(['success' => true]);
+            $version = $page->saveVersion(true, true, null, $request->get('task') == 'autoSave');
+
+            $draftData = [
+                'id' => $version->getId(),
+                'modificationDate' => $version->getDate(),
+            ];
+
+            $this->handleTask($request->get('task'), $page);
+
+            return $this->adminJson(['success' => true, 'draft' => $draftData]);
         } else {
             throw $this->createAccessDeniedHttpException();
         }
@@ -155,8 +165,6 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/active-generate-process", methods={"POST"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -165,7 +173,7 @@ class PrintpageControllerBase extends DocumentControllerBase
      */
     public function activeGenerateProcessAction(Request $request)
     {
-        $document = Document\PrintAbstract::getById(intval($request->get('id')));
+        $document = Document\PrintAbstract::getById((int)$request->get('id'));
 
         if (!$document) {
             throw $this->createNotFoundException('Document with id ' . $request->get('id') . ' not found.');
@@ -188,13 +196,11 @@ class PrintpageControllerBase extends DocumentControllerBase
             'date' => $date,
             'message' => $document->getLastGenerateMessage(),
             'downloadAvailable' => file_exists($document->getPdfFileName()),
-            'statusUpdate' => $statusUpdate
+            'statusUpdate' => $statusUpdate,
         ]);
     }
 
     /**
-     * @Route("/pdf-download", methods={"GET"})
-     *
      * @param Request $request
      *
      * @throws \Exception
@@ -203,7 +209,7 @@ class PrintpageControllerBase extends DocumentControllerBase
      */
     public function pdfDownloadAction(Request $request)
     {
-        $document = Document\PrintAbstract::getById(intval($request->get('id')));
+        $document = Document\PrintAbstract::getById((int)$request->get('id'));
 
         if (!$document) {
             throw $this->createNotFoundException('Document with id ' . $request->get('id') . ' not found.');
@@ -223,8 +229,6 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/start-pdf-generation", methods={"POST"})
-     *
      * @param Request $request
      * @param Config $config
      *
@@ -261,8 +265,6 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/check-pdf-dirty", methods={"GET"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -280,8 +282,6 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/get-processing-options", methods={"GET"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -305,7 +305,7 @@ class PrintpageControllerBase extends DocumentControllerBase
                 'label' => $option['name'],
                 'value' => $value,
                 'type' => $option['type'],
-                'values' => isset($option['values']) ? $option['values'] : null
+                'values' => isset($option['values']) ? $option['values'] : null,
             ];
         }
 
@@ -337,15 +337,13 @@ class PrintpageControllerBase extends DocumentControllerBase
     }
 
     /**
-     * @Route("/cancel-generation", methods={"DELETE"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
      */
     public function cancelGenerationAction(Request $request)
     {
-        Processor::getInstance()->cancelGeneration(intval($request->get('id')));
+        Processor::getInstance()->cancelGeneration((int)$request->get('id'));
 
         return $this->adminJson(['success' => true]);
     }

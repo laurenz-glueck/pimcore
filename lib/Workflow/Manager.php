@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Workflow;
@@ -19,17 +20,19 @@ use Pimcore\Event\WorkflowEvents;
 use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\Document\PageSnippet;
-use Pimcore\Model\Element\AbstractElement;
+use Pimcore\Model\Element\ElementInterface;
 use Pimcore\Model\Element\ValidationException;
 use Pimcore\Workflow\EventSubscriber\ChangePublishedStateSubscriber;
 use Pimcore\Workflow\EventSubscriber\NotesSubscriber;
+use Pimcore\Workflow\MarkingStore\StateTableMarkingStore;
+use Pimcore\Workflow\Notes\CustomHtmlServiceInterface;
 use Pimcore\Workflow\Place\PlaceConfig;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Workflow\Exception\InvalidArgumentException;
 use Symfony\Component\Workflow\Exception\LogicException;
 use Symfony\Component\Workflow\Marking;
 use Symfony\Component\Workflow\Registry;
 use Symfony\Component\Workflow\Workflow;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 class Manager
 {
@@ -94,13 +97,14 @@ class Manager
      * @param string $workflowName
      * @param string $action
      * @param array $actionConfig
+     * @param CustomHtmlServiceInterface $customHtmlService
      *
      * @return $this
      */
-    public function addGlobalAction(string $workflowName, string $action, array $actionConfig)
+    public function addGlobalAction(string $workflowName, string $action, array $actionConfig, CustomHtmlServiceInterface $customHtmlService = null)
     {
         $this->globalActions[$workflowName] = $this->globalActions[$workflowName] ?? [];
-        $this->globalActions[$workflowName][$action] = new GlobalAction($action, $actionConfig, $this->expressionService, $workflowName);
+        $this->globalActions[$workflowName][$action] = new GlobalAction($action, $actionConfig, $this->expressionService, $workflowName, $customHtmlService);
 
         return $this;
     }
@@ -159,7 +163,7 @@ class Manager
         $this->workflows[$workflowName] = new WorkflowConfig($workflowName, $options);
 
         uasort($this->workflows, function (WorkflowConfig $a, WorkflowConfig $b) {
-            return $a->getPriority() < $b->getPriority();
+            return $b->getPriority() <=> $a->getPriority();
         });
     }
 
@@ -251,9 +255,8 @@ class Manager
         $transition = $this->getTransitionByName($workflow->getName(), $transition);
         $changePublishedState = $transition instanceof Transition ? $transition->getChangePublishedState() : null;
 
-        if ($saveSubject && $subject instanceof AbstractElement) {
-            if (method_exists($subject, 'getPublished')
-                && (!$subject->getPublished() || $changePublishedState === ChangePublishedStateSubscriber::SAVE_VERSION)) {
+        if ($saveSubject && $subject instanceof ElementInterface) {
+            if ($changePublishedState === ChangePublishedStateSubscriber::SAVE_VERSION) {
                 $subject->saveVersion();
             } else {
                 $subject->save();
@@ -285,10 +288,10 @@ class Manager
         $this->notesSubscriber->setAdditionalData($additionalData);
 
         $event = new GlobalActionEvent($workflow, $subject, $globalActionObj, [
-            'additionalData' => $additionalData
+            'additionalData' => $additionalData,
         ]);
 
-        $this->eventDispatcher->dispatch(WorkflowEvents::PRE_GLOBAL_ACTION, $event);
+        $this->eventDispatcher->dispatch($event, WorkflowEvents::PRE_GLOBAL_ACTION);
 
         $markingStore = $workflow->getMarkingStore();
 
@@ -301,10 +304,10 @@ class Manager
             $markingStore->setMarking($subject, new Marking($places));
         }
 
-        $this->eventDispatcher->dispatch(WorkflowEvents::POST_GLOBAL_ACTION, $event);
+        $this->eventDispatcher->dispatch($event, WorkflowEvents::POST_GLOBAL_ACTION);
         $this->notesSubscriber->setAdditionalData([]);
 
-        if ($saveSubject && $subject instanceof AbstractElement) {
+        if ($saveSubject && $subject instanceof ElementInterface) {
             $subject->save();
         }
 
@@ -321,9 +324,7 @@ class Manager
      */
     public function getTransitionByName(string $workflowName, string $transitionName): ?\Symfony\Component\Workflow\Transition
     {
-        if (!$workflow = $this->getWorkflowByName($workflowName)) {
-            throw new \Exception(sprintf('workflow %s not found', $workflowName));
-        }
+        $workflow = $this->getWorkflowByName($workflowName);
 
         foreach ($workflow->getDefinition()->getTransitions() as $transition) {
             if ($transition->getName() === $transitionName) {
@@ -332,5 +333,64 @@ class Manager
         }
 
         return null;
+    }
+
+    /**
+     * Forces an initial place being set (and stored) if the current place is empty.
+     * We cannot apply a regular transition b/c it would be considered invalid by the state machine.
+     *
+     * As of Symfony 4.4.8 built-in implementations of @see \Symfony\Component\Workflow\MarkingStore\MarkingStoreInterface
+     * use strict `null` comparison when retrieving the current marking and throw an exception otherwise.
+     *
+     * @param string $workflowName
+     * @param object $subject
+     *
+     * @return bool true if initial state was applied
+     *
+     * @throws \Exception
+     */
+    public function ensureInitialPlace(string $workflowName, $subject): bool
+    {
+        if (!$workflow = $this->getWorkflowIfExists($subject, $workflowName)) {
+            return false;
+        }
+
+        $markingStore = $workflow->getMarkingStore();
+
+        // check that the subject has a non-empty place
+        $initialPlaces = $this->getInitialPlacesForWorkflow($workflow);
+        $markingObject = $markingStore->getMarking($subject);
+        foreach ($markingObject->getPlaces() as $placeName => $nbToken) {
+            if ('' !== $placeName) {
+                continue;
+            }
+
+            // fill empty place with initial place, if any
+            $markingObject->unmark($placeName);
+            foreach ($initialPlaces as $initialPlace) {
+                $markingObject->mark($initialPlace);
+            }
+
+            $markingStore->setMarking($subject, $markingObject);
+
+            // StateTableMarkingStore handles persistence of it's own
+            if ($markingStore instanceof StateTableMarkingStore === false) {
+                $wasOmitMandatoryCheck = $subject->getOmitMandatoryCheck();
+                $subject->setOmitMandatoryCheck(true);
+                $subject->save();
+                $subject->setOmitMandatoryCheck($wasOmitMandatoryCheck);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function getInitialPlacesForWorkflow(Workflow $workflow): array
+    {
+        $definition = $workflow->getDefinition();
+
+        return $definition->getInitialPlaces();
     }
 }

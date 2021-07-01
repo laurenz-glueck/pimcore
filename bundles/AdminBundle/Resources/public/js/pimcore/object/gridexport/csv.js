@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.gridexport.csv");
@@ -16,7 +16,11 @@ pimcore.object.gridexport.csv = Class.create(pimcore.element.gridexport.abstract
     name: "csv",
     text: t("export_csv"),
     warningText: t('csv_object_export_warning'),
-    downloadUrl: "/admin/object-helper/download-csv-file",
+
+    getDownloadUrl: function(fileHandle) {
+         return Routing.generate('pimcore_admin_dataobject_dataobjecthelper_downloadcsvfile', {fileHandle: fileHandle});
+    },
+
     getObjectSettingsContainer: function () {
         var enableInheritance = new Ext.form.Checkbox({
             fieldLabel: t('enable_inheritance'),

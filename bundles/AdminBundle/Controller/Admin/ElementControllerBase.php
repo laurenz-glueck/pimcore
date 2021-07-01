@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin;
@@ -30,9 +31,12 @@ use Pimcore\Model\Element\ElementInterface;
 use Pimcore\Model\Element\Service;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
-class ElementControllerBase extends AdminController
+/**
+ * @internal
+ */
+abstract class ElementControllerBase extends AdminController
 {
     /**
      * @param ElementInterface $element
@@ -45,8 +49,6 @@ class ElementControllerBase extends AdminController
     }
 
     /**
-     * @Route("/tree-get-root", methods={"GET"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -58,7 +60,7 @@ class ElementControllerBase extends AdminController
 
         $id = 1;
         if ($request->get('id')) {
-            $id = intval($request->get('id'));
+            $id = (int)$request->get('id');
         }
 
         if (in_array($type, $allowedTypes)) {
@@ -73,13 +75,14 @@ class ElementControllerBase extends AdminController
     }
 
     /**
-     * @Route("/delete-info", methods={"GET"})
-     *
      * @param Request $request
+     * @param EventDispatcherInterface $eventDispatcher
      *
      * @return JsonResponse
+     *
+     * @throws \Exception
      */
-    public function deleteInfoAction(Request $request)
+    public function deleteInfoAction(Request $request, EventDispatcherInterface $eventDispatcher)
     {
         $hasDependency = false;
         $errors = false;
@@ -104,6 +107,7 @@ class ElementControllerBase extends AdminController
                 }
             } catch (\Exception $e) {
                 Logger::err('failed to access element with id: ' . $id);
+
                 continue;
             }
 
@@ -124,7 +128,7 @@ class ElementControllerBase extends AdminController
                 }
 
                 if ($event instanceof ElementDeleteInfoEventInterface) {
-                    $this->get('event_dispatcher')->dispatch($eventName, $event);
+                    $eventDispatcher->dispatch($event, $eventName);
 
                     if (!$event->getDeletionAllowed()) {
                         $itemResults[] = [
@@ -135,6 +139,7 @@ class ElementControllerBase extends AdminController
                             'allowed' => false,
                         ];
                         $errors |= true;
+
                         continue;
                     }
                 }
@@ -147,12 +152,12 @@ class ElementControllerBase extends AdminController
                 ];
 
                 $deleteJobs[] = [[
-                    'url' => '/admin/recyclebin/add',
+                    'url' => $this->generateUrl('pimcore_admin_recyclebin_add'),
                     'method' => 'POST',
                     'params' => [
                         'type' => $type,
-                        'id' => $element->getId()
-                    ]
+                        'id' => $element->getId(),
+                    ],
                 ]];
 
                 $hasChilds = $element->hasChildren();
@@ -162,37 +167,36 @@ class ElementControllerBase extends AdminController
 
                 if ($hasChilds) {
                     // get amount of childs
-                    $listClass = '\Pimcore\Model\\' . Service::getBaseClassNameForElement($element) . '\Listing';
-                    $list = new $listClass();
-                    $pathColumn = ($type == 'object') ? 'o_path' : 'path';
+                    $list = $element::getList(['unpublished' => true]);
+                    $pathColumn = ($type === 'object') ? 'o_path' : 'path';
                     $list->setCondition($pathColumn . ' LIKE ?', [$element->getRealFullPath() . '/%']);
                     $childs = $list->getTotalCount();
                     $totalChilds += $childs;
 
                     if ($childs > 0) {
                         $deleteObjectsPerRequest = 5;
-                        for ($i = 0; $i < ceil($childs / $deleteObjectsPerRequest); $i++) {
+                        for ($i = 0, $iMax = ceil($childs / $deleteObjectsPerRequest); $i < $iMax; $i++) {
                             $deleteJobs[] = [[
-                                'url' => '/admin/' . $type . '/delete',
+                                'url' => $request->getBaseUrl() . '/admin/' . $type . '/delete',
                                 'method' => 'DELETE',
                                 'params' => [
                                     'step' => $i,
                                     'amount' => $deleteObjectsPerRequest,
                                     'type' => 'childs',
-                                    'id' => $element->getId()
-                                ]
+                                    'id' => $element->getId(),
+                                ],
                             ]];
                         }
                     }
                 }
 
-                // the asset itself is the last one
+                // the element itself is the last one
                 $deleteJobs[] = [[
-                    'url' => '/admin/' . $type . '/delete',
+                    'url' => $request->getBaseUrl() . '/admin/' . $type . '/delete',
                     'method' => 'DELETE',
                     'params' => [
-                        'id' => $element->getId()
-                    ]
+                        'id' => $element->getId(),
+                    ],
                 ]];
             }
         }
@@ -214,7 +218,7 @@ class ElementControllerBase extends AdminController
             'batchDelete' => count($ids) > 1,
             'elementKey' => $elementKey,
             'errors' => $errors,
-            'itemResults' => $itemResults
+            'itemResults' => $itemResults,
         ]);
     }
 }

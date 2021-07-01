@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.asset.versions");
@@ -54,7 +54,7 @@ pimcore.asset.versions = Class.create({
                     }],
                 proxy: {
                     type: 'ajax',
-                    url: "/admin/element/get-versions",
+                    url: Routing.generate('pimcore_admin_element_getversions'),
                     extraParams: {
                         id: this.asset.id,
                         elementType: "asset"
@@ -100,7 +100,7 @@ pimcore.asset.versions = Class.create({
                             return Ext.Date.format(date, "Y-m-d H:i:s");
                     	}
                     }, editable: false},
-                    {text: t("note"), sortable: true, dataIndex: 'note', editor: new Ext.form.TextField()}
+                    {text: t("note"), sortable: true, dataIndex: 'note', editor: new Ext.form.TextField(), renderer: Ext.util.Format.htmlEncode}
                 ],
                 stripeRows: true,
                 width: 450,
@@ -153,7 +153,7 @@ pimcore.asset.versions = Class.create({
         var data = grid.getStore().getAt(rowIndex).data;
 
         var versionId = data.id;
-        var url = "/admin/asset/show-version?id=" + versionId;
+        var url = Routing.generate('pimcore_admin_asset_showversion', {id: versionId});
         Ext.get(this.frameId).dom.src = url;
     },
 
@@ -191,7 +191,7 @@ pimcore.asset.versions = Class.create({
         var versionId = data.id;
 
         Ext.Ajax.request({
-            url: "/admin/element/delete-version",
+            url: Routing.generate('pimcore_admin_element_deleteversion'),
             method: 'DELETE',
             params: {id: versionId}
         });
@@ -207,13 +207,13 @@ pimcore.asset.versions = Class.create({
             Ext.Msg.confirm(t('clear_all'), t('clear_version_message'), function(btn){
                 if (btn == 'yes'){
                     var modificationDate = this.asset.data.modificationDate;
-                    
+
                     Ext.Ajax.request({
-                        url: "/admin/element/delete-all-versions",
+                        url: Routing.generate('pimcore_admin_element_deleteallversion'),
                         method: 'DELETE',
                         params: {id: elememntId, date: modificationDate}
                     });
-                    
+
                     //get sub collection of versions for removel. Keep current version
                     var removeCollection = grid.getStore().getData().createFiltered(function(item){
                         return item.get('date') != modificationDate;
@@ -230,7 +230,7 @@ pimcore.asset.versions = Class.create({
         var versionId = data.id;
 
         Ext.Ajax.request({
-            url: "/admin/asset/publish-version",
+            url: Routing.generate('pimcore_admin_asset_publishversion'),
             method: 'post',
             params: {id: versionId},
             success: function(response) {
@@ -250,18 +250,20 @@ pimcore.asset.versions = Class.create({
         this.store.reload();
     },
 
-    dataUpdate: function (store, record, operation) {
+    dataUpdate: function (store, record, operation, columns) {
 
         if (operation == "edit") {
-            Ext.Ajax.request({
-                url: "/admin/element/version-update",
-                method: 'PUT',
-                params: {
-                    data: Ext.encode(record.data)
-                }
-            });
+            if (in_array("public", columns) || in_array("note", columns)) {
+                Ext.Ajax.request({
+                    method: "post",
+                    url: Routing.generate('pimcore_admin_element_versionupdate'),
+                    method: 'PUT',
+                    params: {
+                        data: Ext.encode(record.data)
+                    }
+                });
+            }
         }
-
-        store.commitChanges();
+        this.checkForPreview(store);
     }
 });

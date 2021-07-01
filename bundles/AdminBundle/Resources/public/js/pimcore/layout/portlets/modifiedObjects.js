@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.layout.portlets.modifiedObjects");
@@ -33,7 +33,7 @@ pimcore.layout.portlets.modifiedObjects = Class.create(pimcore.layout.portlets.a
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/portal/portlet-modified-objects',
+                url: Routing.generate('pimcore_admin_portal_portletmodifiedobjects'),
                 reader: {
                     type: 'json',
                     rootProperty: 'objects'

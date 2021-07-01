@@ -7,6 +7,14 @@ services:
     # SESSION
     #
 
+    session:
+        public: true
+        class: Symfony\Component\HttpFoundation\Session\Session
+        arguments: [ '@session.storage', '@session.namespacedattributebag', '@session.flash_bag' ]
+
+    session.namespacedattributebag:
+        class: Symfony\Component\HttpFoundation\Session\Attribute\NamespacedAttributeBag
+
     # Sessions need to be configured (e.g. adding custom attribute bags) before they are started. The configurator handles
     # a collection of configurator instances which can be added via addConfigurator or by using the pimcore.session.configurator
     # DI tag. See the SessionConfiguratorPass for details.
@@ -30,12 +38,35 @@ services:
         arguments: ['@pimcore.security.encoder_factory.inner', '@?']
         public: false
 
+    security.authentication.provider.dao:
+        class: Symfony\Component\Security\Core\Authentication\Provider\DaoAuthenticationProvider
+        arguments:
+            - !abstract User Provider
+            - !abstract User Checker
+            - !abstract  Provider-shared Key
+            - '@security.encoder_factory'
+            - '%security.authentication.hide_user_not_found%'
+        deprecated: 'The "%service_id%" service is deprecated, use the new authenticator system instead.'
+
+    pimcore.security.validator.user_password:
+        class: Symfony\Component\Security\Core\Validator\Constraints\UserPasswordValidator
+        arguments:
+            - '@security.token_storage'
+            - '@security.encoder_factory'
+        tags:
+            - { name: validator.constraint_validator, alias: security.validator.user_password }
+
     #
     # INFRASTRUCTURE
     #
 
     # creates needed pimcore directories
     Pimcore\HttpKernel\CacheWarmer\MkdirCacheWarmer:
+        public: false
+        tags:
+            - { name: kernel.cache_warmer }
+
+    Pimcore\HttpKernel\CacheWarmer\PimcoreCoreCacheWarmer:
         public: false
         tags:
             - { name: kernel.cache_warmer }
@@ -68,11 +99,6 @@ services:
         public: true
         tags: ['controller.service_arguments']
 
-    Pimcore\Controller\Config\ConfigNormalizer:
-        calls:
-            - [setRoutingDefaults, ['%pimcore.routing.defaults%']]
-
-
     Pimcore\Controller\Config\ControllerDataProvider:
         public : true
         arguments:
@@ -94,17 +120,6 @@ services:
         public: true
         class: \GuzzleHttp\Client
         factory: ['@Pimcore\Http\ClientFactory', createClient]
-
-    pimcore.rest_client:
-        deprecated: ~
-        alias: Pimcore\Tool\RestClient
-        public: true
-
-    Pimcore\Tool\RestClient:
-        deprecated: ~
-        public: true
-        arguments:
-            - '@pimcore.http_client'
 
     # Newsletter Adapter
     pimcore.document.newsletter.factory.default:
@@ -187,10 +202,18 @@ services:
     Pimcore\Model\DataObject\ClassDefinition\ClassLayoutDefinitionManager:
         public: true
 
-    # Override Swiftmailer redirecting plugin
-    swiftmailer.plugin.redirecting.abstract:
-        abstract: true
-        class: Pimcore\Mail\Plugins\RedirectingPlugin
+    Pimcore\Model\DataObject\ClassDefinition\DynamicOptionsProvider\CountryOptionsProvider:
+        public: true
+
+    Pimcore\Mail\Plugins\RedirectingPlugin: ~
+
+    # Decorates Symfony Mailer
+    Pimcore\Mail\Mailer:
+        decorates: mailer
+        arguments:
+            - '@Pimcore\Mail\Mailer.inner'
+            - '@Pimcore\Mail\Plugins\RedirectingPlugin'
+        public: true
 
     Pimcore\Model\DataObject\QuantityValue\UnitConversionService:
         public: true
@@ -202,3 +225,36 @@ services:
     Pimcore\Bundle\CoreBundle\Request\ParamConverter\DataObjectParamConverter:
         tags:
             - { name: request.param_converter, priority: -2, converter: data_object_converter }
+
+    Symfony\Component\Lock\PersistingStoreInterface:
+        class: Symfony\Component\Lock\Store\PdoStore
+        arguments:
+            - '@database_connection'
+
+    Symfony\Component\Lock\LockFactory:
+        public: true
+        class: Symfony\Component\Lock\LockFactory
+        arguments:
+            - '@Symfony\Component\Lock\PersistingStoreInterface'
+
+
+    Pimcore\Model\Paginator\EventSubscriber\PaginateListingSubscriber: ~
+
+    Knp\Component\Pager\Event\Subscriber\Paginate\PaginationSubscriber: ~
+
+    Knp\Component\Pager\PaginatorInterface:
+        class: Knp\Component\Pager\Paginator
+        public: true
+
+    Pimcore\Tool\Storage:
+        public: true
+        arguments:
+            $locator: !tagged_locator { tag: flysystem.storage }
+
+    Pimcore\Image\Adapter\Imagick:
+        shared: false
+        public: true
+
+    Pimcore\Image\Adapter\GD:
+        shared: false
+        public: true

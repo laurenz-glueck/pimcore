@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.element.dependencies");
@@ -22,7 +22,7 @@ pimcore.element.dependencies = Class.create({
     },
 
     getLayout: function() {
-        
+
         if (this.layout == null) {
             this.layout = new Ext.Panel({
                 tabConfig: {
@@ -53,13 +53,13 @@ pimcore.element.dependencies = Class.create({
     completeLoad: function() {
         this.layout.add(this.requiresPanel);
         this.layout.add(this.requiredByPanel);
-        
+
         this.layout.updateLayout();
     },
 
 
     getGridLayouts: function() {
-        
+
         // only load it once
         if(this.requiresLoaded && this.requiredByLoaded) {
             return;
@@ -70,7 +70,7 @@ pimcore.element.dependencies = Class.create({
 
         this.waitForLoaded();
     },
-        
+
     getRequiresLayout: function() {
 
         var itemsPerPage = pimcore.helpers.grid.getDefaultPageSize(-1);
@@ -93,7 +93,7 @@ pimcore.element.dependencies = Class.create({
             pageSize: itemsPerPage,
             proxy : {
                 type: 'ajax',
-                url: '/admin/element/get-requires-dependencies',
+                url: Routing.generate('pimcore_admin_element_getrequiresdependencies'),
                 reader: {
                     type: 'json',
                     rootProperty: 'requires'
@@ -128,12 +128,12 @@ pimcore.element.dependencies = Class.create({
         });
         this.requiresGrid.on("rowclick", this.click.bind(this));
         this.requiresGrid.on("rowcontextmenu", this.onRowContextmenu.bind(this));
-        
+
         this.requiresStore.load({
             callback : function(records, operation, success) {
                 if (success) {
                     var response = operation.getResponse();
-                    this.requiresData = Ext.decode(response.responseText);
+                    this.requiresData = response.responseJson;
 
                     if (this.requiresData.hasHidden) {
                         this.requiresNote.show();
@@ -167,7 +167,7 @@ pimcore.element.dependencies = Class.create({
             items: [this.requiresNote, this.requiresGrid]
         });
 
-        this.requiresLoaded = true;        
+        this.requiresLoaded = true;
     },
 
     getRequiredByLayout: function() {
@@ -187,12 +187,12 @@ pimcore.element.dependencies = Class.create({
                 ]
             });
         }
-        
+
         this.requiredByStore = new Ext.data.Store({
             pageSize: itemsPerPage,
             proxy : {
                 type: 'ajax',
-                url: '/admin/element/get-required-by-dependencies',
+                url: Routing.generate('pimcore_admin_element_getrequiredbydependencies'),
                 reader: {
                     type: 'json',
                     rootProperty: 'requiredBy'
@@ -233,7 +233,7 @@ pimcore.element.dependencies = Class.create({
             callback : function(records, operation, success) {
                 if (success) {
                     var response = operation.getResponse();
-                    this.requiredByData = Ext.decode(response.responseText);
+                    this.requiredByData = response.responseJson;
 
                     if (this.requiredByData.hasHidden) {
                         this.requiredByNote.show();
@@ -267,8 +267,8 @@ pimcore.element.dependencies = Class.create({
             autoExpandColumn: "path",
             items: [this.requiredByNote, this.requiredByGrid]
         });
-    
-        this.requiredByLoaded = true;        
+
+        this.requiredByLoaded = true;
     },
 
     click: function ( grid, record, tr, rowIndex, e, eOpts ) {

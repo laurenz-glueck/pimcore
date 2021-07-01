@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 Ext.define('pimcore.element.helpers.gridCellEditor', {
@@ -62,7 +62,12 @@ Ext.define('pimcore.element.helpers.gridCellEditor', {
             fieldInfo.layout.title = t(fieldInfo.layout.title);
         }
 
-        var tag = new pimcore[fieldType].tags[tagType](value, fieldInfo.layout);
+
+        if (fieldType == "assetmetadata") {
+            var tag = new pimcore.asset.metadata.tags[tagType](value, fieldInfo.layout);
+        } else {
+            var tag = new pimcore[fieldType].tags[tagType](value, fieldInfo.layout);
+        }
 
         if(fieldType == 'object') {
             var object = Ext.clone(this.context.record);
@@ -72,6 +77,10 @@ Ext.define('pimcore.element.helpers.gridCellEditor', {
         tag.updateContext({
             cellEditing: true
         });
+
+        if (typeof tag["finishSetup"] !== "undefined") {
+            tag.finishSetup();
+        }
 
         var formPanel = Ext.create('Ext.form.Panel', {
             xtype: "form",

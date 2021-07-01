@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.thumbnail.item");
@@ -82,12 +82,15 @@ pimcore.settings.thumbnail.item = Class.create({
         this.settings = new Ext.form.FormPanel({
             border: false,
             labelWidth: 150,
+            defaults: {
+                renderer: Ext.util.Format.htmlEncode
+            },
             items: [{
                 xtype: "panel",
                 autoHeight: true,
                 border: false,
                 loader: {
-                    url: "/admin/settings/thumbnail-adapter-check",
+                    url: Routing.generate('pimcore_admin_settings_thumbnailadaptercheck'),
                     autoLoad: true
                 }
             }, {
@@ -140,11 +143,6 @@ pimcore.settings.thumbnail.item = Class.create({
                         style: "margin-bottom: 20px"
                     }, {
                         xtype: "checkbox",
-                        name: "forcePictureTag",
-                        boxLabel: t("force_picture_html_tag"),
-                        checked: this.data.forcePictureTag
-                    }, {
-                        xtype: "checkbox",
                         name: "preserveColor",
                         boxLabel: t("preserve_color") + " (Imagick, ORIGINAL)",
                         checked: this.data.preserveColor
@@ -167,6 +165,15 @@ pimcore.settings.thumbnail.item = Class.create({
                     }, {
                         xtype: "container",
                         html: "<small>(" + t("rasterize_svg_info_text") + ")</small>",
+                        style: "margin-bottom: 20px"
+                    }, {
+                        xtype: "checkbox",
+                        name: "preserveAnimation",
+                        boxLabel: t("preserve_animation") + " (Imagick)",
+                        checked: this.data.preserveAnimation
+                    }, {
+                        xtype: "container",
+                        html: "<small>(" + t("preserve_animation_info_text") + ")</small>",
                         style: "margin-bottom: 20px"
                     }, {
                         xtype: "checkbox",
@@ -304,7 +311,7 @@ pimcore.settings.thumbnail.item = Class.create({
         }
 
         Ext.Ajax.request({
-            url: "/admin/settings/thumbnail-update",
+            url: Routing.generate('pimcore_admin_settings_thumbnailupdate'),
             method: "PUT", params: this.getData(),
             success: this.saveOnComplete.bind(this, reload)
 

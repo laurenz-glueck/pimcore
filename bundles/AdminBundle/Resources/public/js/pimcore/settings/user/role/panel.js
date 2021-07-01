@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 
@@ -48,7 +48,7 @@ pimcore.settings.user.role.panel = Class.create(pimcore.settings.user.panels.abs
             var store = Ext.create('Ext.data.TreeStore', {
                 proxy: {
                     type: 'ajax',
-                    url: '/admin/user/role-tree-get-childs-by-id'
+                    url: Routing.generate('pimcore_admin_user_roletreegetchildsbyid')
                 }
             });
 
@@ -172,7 +172,7 @@ pimcore.settings.user.role.panel = Class.create(pimcore.settings.user.panels.abs
     update: function (userId, values) {
 
         Ext.Ajax.request({
-            url: "/admin/user/update",
+            url: Routing.generate('pimcore_admin_user_update'),
             method: "PUT",
             params: {
                 id: userId,

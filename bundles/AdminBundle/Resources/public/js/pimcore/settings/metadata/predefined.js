@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.metadata.predefined");
@@ -17,12 +17,12 @@ pimcore.settings.metadata.predefined = Class.create({
     initialize: function () {
         this.getTabPanel();
     },
-    
+
     activate: function () {
         var tabPanel = Ext.getCmp("pimcore_panel_tabs");
         tabPanel.setActiveItem("predefined_metadata");
     },
-    
+
     getTabPanel: function () {
 
         if (!this.panel) {
@@ -52,7 +52,7 @@ pimcore.settings.metadata.predefined = Class.create({
     },
 
     getRowEditor: function () {
-        var url =  '/admin/settings/predefined-metadata?';
+        var url = Routing.generate('pimcore_admin_settings_metadata');
 
         this.store = pimcore.helpers.grid.buildDefaultStore(
             url,
@@ -134,14 +134,17 @@ pimcore.settings.metadata.predefined = Class.create({
             {text: t("name"), width: 200, sortable: true, dataIndex: 'name',
                 getEditor: function() { return new Ext.form.TextField({}); }
             },
+            {text: t("group"), width: 200, sortable: true, dataIndex: 'group',
+                getEditor: function() { return new Ext.form.TextField({}); }
+            },
             {text: t("description"), sortable: true, dataIndex: 'description',
                 getEditor: function() { return new Ext.form.TextArea({}); },
                 renderer: function (value, metaData, record, rowIndex, colIndex, store) {
-                                if(empty(value)) {
-                                    return "";
-                                }
-                                return nl2br(value);
-                           }
+                    if (empty(value)) {
+                        return "";
+                    }
+                    return nl2br(Ext.util.Format.htmlEncode(value));
+                }
             },
             {text: t("type"), width: 90, sortable: true,
                 dataIndex: 'type',
@@ -255,7 +258,12 @@ pimcore.settings.metadata.predefined = Class.create({
             stripeRows: true,
             bodyCls: "pimcore_editable_grid",
             trackMouseOver: true,
-            columns : metadataColumns,
+            columns: {
+                items: metadataColumns,
+                defaults: {
+                    renderer: Ext.util.Format.htmlEncode
+                },
+            },
             clicksToEdit: 1,
             selModel: Ext.create('Ext.selection.CellModel', {}),
             bbar: this.pagingtoolbar,

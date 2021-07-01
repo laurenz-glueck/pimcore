@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.gdpr.dataproviders.assets");
@@ -16,8 +16,6 @@ pimcore.settings.gdpr.dataproviders.assets = Class.create({
 
     title: t("gdpr_dataSource_assets"),
     iconCls: "pimcore_icon_asset",
-    searchUrl: "/admin/gdpr/asset/search-assets",
-    downloadUrl: "/admin/gdpr/asset/export?id=",
 
     searchParams: [],
 
@@ -51,7 +49,7 @@ pimcore.settings.gdpr.dataproviders.assets = Class.create({
             pageSize: pimcore.helpers.grid.getDefaultPageSize(),
             proxy : {
                 type: 'ajax',
-                url: this.searchUrl,
+                url: Routing.generate('pimcore_admin_gdpr_asset_searchasset'),
                 reader: {
                     type: 'json',
                     rootProperty: 'data'
@@ -87,7 +85,7 @@ pimcore.settings.gdpr.dataproviders.assets = Class.create({
                                 pimcore.helpers.showPermissionError("view");
                                 return;
                             }
-                            pimcore.helpers.download(this.downloadUrl + data.data.id);
+                            pimcore.helpers.download(Routing.generate('pimcore_admin_gdpr_asset_exportassets', {id: data.data.id}));
                         }.bind(this),
                         getClass: function (v, meta, rec) {
                             if (!rec.get("permissions").view) {

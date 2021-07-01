@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.website");
@@ -57,7 +57,7 @@ pimcore.settings.website = Class.create({
 
 
         var itemsPerPage = pimcore.helpers.grid.getDefaultPageSize();
-        var url = '/admin/settings/website-settings?';
+        var url = Routing.generate('pimcore_admin_settings_websitesettings');
 
         this.store = pimcore.helpers.grid.buildDefaultStore(
             url, ["id", 'name','type', "data", 'siteId', 'creationDate', 'modificationDate'],
@@ -451,7 +451,7 @@ pimcore.settings.website = Class.create({
             }
         }
 
-        return value;
+        return Ext.util.Format.htmlEncode(value);
     },
 
     cellMousedown: function (grid, cell, rowIndex, cellIndex, e) {

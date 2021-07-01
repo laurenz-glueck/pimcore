@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.variantsTab");
@@ -18,7 +18,9 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
     gridType: 'object',
 
     fieldObject: {},
-    initialize: function (object) {
+    initialize: function ($super, object) {
+        $super();
+
         this.element = object;
         this.searchType = "folder";
         this.noBatchColumns = [];
@@ -53,7 +55,7 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
 
     getTableDescription: function () {
         Ext.Ajax.request({
-            url: "/admin/object-helper/grid-get-column-config",
+            url: Routing.generate('pimcore_admin_dataobject_dataobjecthelper_gridgetcolumnconfig'),
             params: {
                 id: this.classId,
                 objectId:
@@ -66,7 +68,9 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
         });
     },
 
-    createGrid: function (fromConfig, response, settings, save) {
+    createGrid: function (fromConfig, response, settings, save, context) {
+
+        this.context = context;
         var fields = [];
         if (response.responseText) {
             response = Ext.decode(response.responseText);
@@ -75,11 +79,13 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
             this.sortinfo = response.sortinfo;
 
             this.settings = response.settings || {};
+            this.context = response.context || {};
             this.availableConfigs = response.availableConfigs;
             this.sharedConfigs = response.sharedConfigs;
         } else {
             fields = response;
             this.settings = settings;
+            this.context = context;
             this.buildColumnConfigMenu();
         }
 
@@ -106,7 +112,7 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
         var gridHelper = new pimcore.object.helpers.grid(
             this.selectedClass,
             fields,
-            "/admin/variants/get-variants",
+            Routing.generate('pimcore_admin_dataobject_variants_getvariants'),
             baseParams,
             false
         );
@@ -270,7 +276,7 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
     editKey: function (id, button, value) {
         if (button == "ok") {
             Ext.Ajax.request({
-                url: "/admin/variants/update-key",
+                url: Routing.generate('pimcore_admin_dataobject_variants_updatekey'),
                 method: 'PUT',
                 params: {id: id, key: value},
                 success: function (response) {
@@ -293,7 +299,7 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
     doAdd: function (button, value) {
         if (button == "ok") {
             Ext.Ajax.request({
-                url: "/admin/object/add",
+                url: Routing.generate('pimcore_admin_dataobject_dataobject_add'),
                 method: 'POST',
                 params: {
                     className: this.element.data.general.o_className,
@@ -327,7 +333,7 @@ pimcore.object.variantsTab = Class.create(pimcore.object.helpers.gridTabAbstract
             }
 
             Ext.Ajax.request({
-                url: "/admin/object/delete",
+                url: Routing.generate('pimcore_admin_dataobject_dataobject_delete'),
                 method: 'DELETE',
                 params: {
                     id: id

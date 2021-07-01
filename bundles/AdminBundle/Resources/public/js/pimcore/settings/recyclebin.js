@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.recyclebin");
@@ -55,7 +55,7 @@ pimcore.settings.recyclebin = Class.create({
 
         var itemsPerPage = pimcore.helpers.grid.getDefaultPageSize();
         this.store = pimcore.helpers.grid.buildDefaultStore(
-            '/admin/recyclebin/list?',
+            Routing.generate('pimcore_admin_recyclebin_list'),
             [
                 {name: 'id'},
                 {name: 'type'},
@@ -229,7 +229,7 @@ pimcore.settings.recyclebin = Class.create({
 
     onFlush: function (btn, ev) {
         Ext.Ajax.request({
-            url: "/admin/recyclebin/flush",
+            url: Routing.generate('pimcore_admin_recyclebin_flush'),
             method: 'DELETE',
             success: function () {
                 this.store.reload();
@@ -261,7 +261,7 @@ pimcore.settings.recyclebin = Class.create({
         }
 
         Ext.Ajax.request({
-            url: "/admin/recyclebin/restore",
+            url: Routing.generate('pimcore_admin_recyclebin_restore'),
             method: 'POST',
             params: {
                 id: ids[offset]

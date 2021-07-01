@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.classes.data.manyToOneRelation");
@@ -98,7 +98,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-tree'
+                url: Routing.generate('pimcore_admin_dataobject_class_gettree')
             },
             fields: ["text"]
         });
@@ -117,7 +117,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-document-types'
+                url: Routing.generate('pimcore_admin_dataobject_class_getdocumenttypes')
             },
             fields: ["text"]
         });
@@ -133,7 +133,7 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-asset-types'
+                url: Routing.generate('pimcore_admin_dataobject_class_getassettypes')
             },
             fields: ["text"]
         });
@@ -154,11 +154,16 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
                 labelWidth: 100,
                 items :[
                     {
-                        xtype: "numberfield",
+                        xtype: "textfield",
                         fieldLabel: t("width"),
                         name: "width",
                         value: this.datax.width
-                    } ,
+                    },
+                    {
+                        xtype: "displayfield",
+                        hideLabel: true,
+                        value: t('width_explanation')
+                    },
                     {
                         xtype: 'textfield',
                         width: 600,
@@ -354,6 +359,3 @@ pimcore.object.classes.data.manyToOneRelation = Class.create(pimcore.object.clas
     }
 
 });
-
-// @TODO BC layer, to be removed in v7.0
-pimcore.object.classes.data.href = pimcore.object.classes.data.manyToOneRelation;

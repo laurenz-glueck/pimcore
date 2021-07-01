@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 
@@ -20,7 +20,7 @@ pimcore.settings.user.role.tab = Class.create({
         this.id = id;
 
         Ext.Ajax.request({
-            url: "/admin/user/role-get",
+            url: Routing.generate('pimcore_admin_user_roleget'),
             success: this.loadComplete.bind(this),
             params: {
                 id: this.id
@@ -88,7 +88,7 @@ pimcore.settings.user.role.tab = Class.create({
         }
 
         Ext.Ajax.request({
-            url: "/admin/user/update",
+            url: Routing.generate('pimcore_admin_user_update'),
             method: "PUT",
             params: data,
             success: function (transport) {

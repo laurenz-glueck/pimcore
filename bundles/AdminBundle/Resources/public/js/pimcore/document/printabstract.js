@@ -3,24 +3,22 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.document.printabstract");
 pimcore.document.printabstract = Class.create(pimcore.document.page_snippet, {
-
-    urlprefix: "/admin/",
     type: "printabstract",
 
     initialize: function(id, options) {
         this.id = intval(id);
         this.options = options;
-        
+
         pimcore.plugin.broker.fireEvent("preOpenDocument", this, this.getType());
 
         this.addLoadingPanel();
@@ -46,9 +44,9 @@ pimcore.document.printabstract = Class.create(pimcore.document.page_snippet, {
                         iconCls: "pimcore_icon_save",
                         handler: this.publishClose.bind(this)
                     },{
-                        text: t('save_only_new_version'),
+                        text: t('save_draft'),
                         iconCls: "pimcore_icon_save",
-                        handler: this.save.bind(this)
+                        handler: this.save.bind(this, 'version')
                     }
                 ]
             });
@@ -62,7 +60,7 @@ pimcore.document.printabstract = Class.create(pimcore.document.page_snippet, {
         parameters.id = this.id;
 
 
-        // save all data allowed		
+        // save all data allowed
         if (this.isAllowed("properties")) {
             // properties
             try {

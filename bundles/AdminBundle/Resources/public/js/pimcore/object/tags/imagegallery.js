@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.tags.imageGallery");
@@ -40,7 +40,7 @@ pimcore.object.tags.imageGallery = Class.create(pimcore.object.tags.abstract, {
             renderer: function (key, value, metaData, record) {
                 this.applyPermissionStyle(key, value, metaData, record);
 
-                if (record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited == true) {
+                if (record.data.inheritedFields && record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited == true) {
                     metaData.tdCls += " grid_value_inherited";
                 }
 
@@ -52,23 +52,20 @@ pimcore.object.tags.imageGallery = Class.create(pimcore.object.tags.abstract, {
 
                         var item = value[i];
 
-                        var baseUrl = '<img style="padding-left: 3px" src="/admin/asset/get-image-thumbnail?id=' + item.id;
+                        var route = 'pimcore_admin_asset_getimagethumbnail';
                         var params = {
                             width: 88,
                             height: 88,
-                            frame: true
+                            frame: true,
+                            id: item.id
                         };
-
-                        var url = Ext.String.urlAppend(baseUrl, Ext.Object.toQueryString(params));
-
                         if (item.crop) {
-                            var cropParams = Ext.Object.toQueryString(item.crop);
-                            url = Ext.String.urlAppend(url, cropParams);
+                            params = Ext.merge(params, item.crop);
                         }
+                        var url = Routing.generate(route, params);
+                        var tag = '<img style="padding-left: 3px" src="'+url+'">';
 
-                        url = url + '" />';
-
-                        content += url;
+                        content += tag;
                     }
 
                 }
@@ -107,11 +104,10 @@ pimcore.object.tags.imageGallery = Class.create(pimcore.object.tags.abstract, {
         var itemWidth = this.fieldConfig.width ? this.fieldConfig.width : 150;
         var itemHeight = this.fieldConfig.height ? this.fieldConfig.height : 150;
 
-        var fieldConfig = {
+        let fieldConfig = Object.assign({}, this.fieldConfig, {
             width: itemWidth,
             height: itemHeight,
-            uploadPath: this.fieldConfig.uploadPath,
-        };
+        });
 
         return fieldConfig;
     },
@@ -218,7 +214,7 @@ pimcore.object.tags.imageGallery = Class.create(pimcore.object.tags.abstract, {
                 respectPlaceholder: true,
                 callback: this
             },
-            componentCls: "object_field",
+            componentCls: "object_field object_field_type_" + this.type,
             style: {
                 margin: '0 0 10px 0',
             },

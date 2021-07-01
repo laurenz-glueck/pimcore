@@ -1,18 +1,19 @@
 <?php
+
+declare(strict_types=1);
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
-
-declare(strict_types=1);
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin;
 
@@ -29,15 +30,18 @@ use Symfony\Component\Routing\Annotation\Route;
 
 /**
  * @Route("/notification")
+ *
+ * @internal
  */
 class NotificationController extends AdminController
 {
     /**
+     * @Route("/recipients", name="pimcore_admin_notification_recipients", methods={"GET"})
+     *
      * @param UserService $service
      * @param Translator $translator
      *
      * @return JsonResponse
-     * @Route("/recipients", methods={"GET"})
      */
     public function recipientsAction(UserService $service, Translator $translator): JsonResponse
     {
@@ -51,7 +55,7 @@ class NotificationController extends AdminController
 
             $data[] = [
                 'id' => $recipient->getId(),
-                'text' => $prefix . $recipient->getName()
+                'text' => $prefix . $recipient->getName(),
             ];
         }
 
@@ -59,11 +63,12 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/send", name="pimcore_admin_notification_send", methods={"POST"})
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/send", methods={"POST"})
      */
     public function sendAction(Request $request, NotificationService $service): JsonResponse
     {
@@ -88,18 +93,29 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/find", name="pimcore_admin_notification_find")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/find")
      */
     public function findAction(Request $request, NotificationService $service): JsonResponse
     {
         $this->checkPermission('notifications');
 
         $id = (int) $request->get('id', 0);
-        $notification = $service->findAndMarkAsRead($id, $this->getAdminUser()->getId());
+
+        try {
+            $notification = $service->findAndMarkAsRead($id, $this->getAdminUser()->getId());
+        } catch (\UnexpectedValueException $e) {
+            return $this->adminJson(
+                [
+                    'success' => false,
+                ]
+            );
+        }
+
         $data = $service->format($notification);
 
         return $this->adminJson([
@@ -109,17 +125,18 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/find-all", name="pimcore_admin_notification_findall")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/find-all")
      */
     public function findAllAction(Request $request, NotificationService $service): JsonResponse
     {
         $this->checkPermission('notifications');
 
-        $filter = ['recipient = ?' => (int) $this->getAdminUser()->getId()];
+        $filter = ['recipient' => (int) $this->getAdminUser()->getId()];
         $parser = new NotificationServiceFilterParser($request);
 
         foreach ($parser->parse() as $key => $val) {
@@ -128,7 +145,7 @@ class NotificationController extends AdminController
 
         $options = [
             'offset' => $request->get('start', 0),
-            'limit' => $request->get('limit', 40)
+            'limit' => $request->get('limit', 40),
         ];
 
         $result = $service->findAll($filter, $options);
@@ -147,11 +164,12 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/find-last-unread", name="pimcore_admin_notification_findlastunread")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/find-last-unread")
      */
     public function findLastUnreadAction(Request $request, NotificationService $service): JsonResponse
     {
@@ -177,11 +195,12 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/mark-as-read", name="pimcore_admin_notification_markasread")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/mark-as-read")
      */
     public function markAsReadAction(Request $request, NotificationService $service): JsonResponse
     {
@@ -194,11 +213,12 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/delete", name="pimcore_admin_notification_delete")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/delete")
      */
     public function deleteAction(Request $request, NotificationService $service): JsonResponse
     {
@@ -211,11 +231,12 @@ class NotificationController extends AdminController
     }
 
     /**
+     * @Route("/delete-all", name="pimcore_admin_notification_deleteall")
+     *
      * @param Request $request
      * @param NotificationService $service
      *
      * @return JsonResponse
-     * @Route("/delete-all")
      */
     public function deleteAllAction(Request $request, NotificationService $service): JsonResponse
     {

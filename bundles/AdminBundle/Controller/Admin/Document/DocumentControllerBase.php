@@ -1,23 +1,24 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin\Document;
 
 use Pimcore\Bundle\AdminBundle\Controller\AdminController;
-use Pimcore\Bundle\AdminBundle\Controller\Traits\AdminStyleTrait;
 use Pimcore\Bundle\AdminBundle\Controller\Traits\ApplySchedulerDataTrait;
-use Pimcore\Controller\EventedControllerInterface;
+use Pimcore\Bundle\AdminBundle\Controller\Traits\DocumentTreeConfigTrait;
+use Pimcore\Controller\KernelControllerEventInterface;
 use Pimcore\Event\Admin\ElementAdminStyleEvent;
 use Pimcore\Event\AdminEvents;
 use Pimcore\Logger;
@@ -25,36 +26,47 @@ use Pimcore\Model;
 use Pimcore\Model\Document\Targeting\TargetingDocumentInterface;
 use Pimcore\Model\Element;
 use Pimcore\Model\Property;
+use Pimcore\Model\Version;
 use Symfony\Component\EventDispatcher\GenericEvent;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
-use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\HttpKernel\Event\ControllerEvent;
 
-abstract class DocumentControllerBase extends AdminController implements EventedControllerInterface
+/**
+ * @internal
+ */
+abstract class DocumentControllerBase extends AdminController implements KernelControllerEventInterface
 {
-    use AdminStyleTrait;
     use ApplySchedulerDataTrait;
+    use DocumentTreeConfigTrait;
 
-    protected function preSendDataActions(&$data, Model\Document $document)
+    protected function preSendDataActions(&$data, Model\Document $document, ?Version $draftVersion = null)
     {
-        $data['versionDate'] = $document->getModificationDate();
+        $documentFromDatabase = Model\Document::getById($document->getId(), true);
+
+        $data['versionDate'] = $documentFromDatabase->getModificationDate();
         $data['userPermissions'] = $document->getUserPermissions();
         $data['idPath'] = Element\Service::getIdPath($document);
 
         $data['php'] = [
             'classes' => array_merge([get_class($document)], array_values(class_parents($document))),
-            'interfaces' => array_values(class_implements($document))
+            'interfaces' => array_values(class_implements($document)),
         ];
 
         $this->addAdminStyle($document, ElementAdminStyleEvent::CONTEXT_EDITOR, $data);
 
+        if ($draftVersion && $documentFromDatabase->getModificationDate() < $draftVersion->getDate()) {
+            $data['draft'] = [
+                'id' => $draftVersion->getId(),
+                'modificationDate' => $draftVersion->getDate(),
+            ];
+        }
+
         $event = new GenericEvent($this, [
             'data' => $data,
-            'document' => $document
+            'document' => $document,
         ]);
-        \Pimcore::getEventDispatcher()->dispatch(AdminEvents::DOCUMENT_GET_PRE_SEND_DATA, $event);
+        \Pimcore::getEventDispatcher()->dispatch($event, AdminEvents::DOCUMENT_GET_PRE_SEND_DATA);
         $data = $event->getArgument('data');
     }
 
@@ -131,8 +143,8 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     protected function addDataToDocument(Request $request, Model\Document\PageSnippet $document)
     {
         // if a target group variant get's saved, we have to load all other editables first, otherwise they will get deleted
-        if ($request->get('appendEditables') || ($document instanceof TargetingDocumentInterface && $document->hasTargetGroupSpecificElements())) {
-            $document->getElements();
+        if ($request->get('appendEditables') || ($document instanceof TargetingDocumentInterface && $document->hasTargetGroupSpecificEditables())) {
+            $document->getEditables();
         }
 
         if ($request->get('data')) {
@@ -140,7 +152,7 @@ abstract class DocumentControllerBase extends AdminController implements Evented
             foreach ($data as $name => $value) {
                 $data = $value['data'] ?? null;
                 $type = $value['type'];
-                $document->setRawElement($name, $type, $data);
+                $document->setRawEditable($name, $type, $data);
             }
         }
     }
@@ -161,8 +173,6 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
-     * @Route("/save-to-session", methods={"POST"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -224,8 +234,6 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
-     * @Route("/remove-from-session", methods={"DELETE"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -264,16 +272,18 @@ abstract class DocumentControllerBase extends AdminController implements Evented
 
     /**
      * @param Model\Document\PageSnippet $document
+     * @param null|Version $draftVersion
      *
      * @return Model\Document\PageSnippet
      */
-    protected function getLatestVersion(Model\Document\PageSnippet $document)
+    protected function getLatestVersion(Model\Document\PageSnippet $document, &$draftVersion = null)
     {
-        $latestVersion = $document->getLatestVersion();
+        $latestVersion = $document->getLatestVersion($this->getUser()->getId());
         if ($latestVersion) {
             $latestDoc = $latestVersion->loadData();
             if ($latestDoc instanceof Model\Document\PageSnippet) {
-                $latestDoc->setModificationDate($document->getModificationDate()); // set de modification-date from published version to compare it in js-frontend
+                $draftVersion = $latestVersion;
+
                 return $latestDoc;
             }
         }
@@ -284,8 +294,6 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     /**
      * This is used for pages and snippets to change the master document (which is not saved with the normal save button)
      *
-     * @Route("/change-master-document", methods={"PUT"})
-     *
      * @param Request $request
      *
      * @return JsonResponse
@@ -294,7 +302,7 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     {
         $doc = Model\Document::getById($request->get('id'));
         if ($doc instanceof Model\Document\PageSnippet) {
-            $doc->setElements([]);
+            $doc->setEditables([]);
             $doc->setContentMasterDocumentId($request->get('contentMasterDocumentPath'));
             $doc->saveVersion();
         }
@@ -303,9 +311,9 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
-     * @param FilterControllerEvent $event
+     * @param ControllerEvent $event
      */
-    public function onKernelController(FilterControllerEvent $event)
+    public function onKernelControllerEvent(ControllerEvent $event)
     {
         $isMasterRequest = $event->isMasterRequest();
         if (!$isMasterRequest) {
@@ -317,16 +325,19 @@ abstract class DocumentControllerBase extends AdminController implements Evented
     }
 
     /**
-     * @param FilterResponseEvent $event
-     */
-    public function onKernelResponse(FilterResponseEvent $event)
-    {
-        // nothing to do
-    }
-
-    /**
      * @param Request $request
      * @param Model\Document $page
      */
     abstract protected function setValuesToDocument(Request $request, Model\Document $page);
+
+    /**
+     * @param string $task
+     * @param Model\Document\Snippet $page
+     */
+    protected function handleTask($task, $page)
+    {
+        if ($task == 'publish' || $task == 'version') {
+            $page->deleteAutoSaveVersions($this->getUser()->getId());
+        }
+    }
 }

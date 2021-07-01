@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.asset.gridexport.csv");
@@ -16,7 +16,7 @@ pimcore.asset.gridexport.csv = Class.create(pimcore.element.gridexport.abstract,
     name: "csv",
     text: t("export_csv"),
     warningText: t('asset_export_warning'),
-    downloadUrl: "/admin/asset-helper/download-csv-file",
+
     getExportSettingsContainer: function () {
         return new Ext.form.FieldSet({
             title: t('csv_settings'),
@@ -26,10 +26,15 @@ pimcore.asset.gridexport.csv = Class.create(pimcore.element.gridexport.abstract,
                     name: 'delimiter',
                     maxLength: 1,
                     labelWidth: 200,
-                    value: ';'
+                    value: ';',
+                    allowBlank: false
                 })
             ]
         });
+    },
+
+    getDownloadUrl: function(fileHandle) {
+         return Routing.generate('pimcore_admin_asset_assethelper_downloadcsvfile', {fileHandle: fileHandle});
     }
 });
 

@@ -3,21 +3,21 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.asset.tree");
 pimcore.asset.tree = Class.create({
 
-    treeDataUrl: "/admin/asset/tree-get-childs-by-id",
+    treeDataUrl: null,
 
     initialize: function(config, perspectiveCfg) {
-
+        this.treeDataUrl = Routing.generate('pimcore_admin_asset_treegetchildsbyid');
         this.perspectiveCfg = perspectiveCfg;
         if (!perspectiveCfg) {
             this.perspectiveCfg = {
@@ -47,7 +47,7 @@ pimcore.asset.tree = Class.create({
 
         // get root node config
         Ext.Ajax.request({
-            url: "/admin/asset/tree-get-root",
+            url: Routing.generate('pimcore_admin_asset_treegetroot'),
             params: {
                 id: this.config.rootId,
                 view: this.config.customViewId,
@@ -141,7 +141,7 @@ pimcore.asset.tree = Class.create({
                 handler: pimcore.layout.treepanelmanager.toLeft.bind(this),
                 hidden: this.position == "left"
             }],
-            root: rootNodeConfig,
+            // root: rootNodeConfig,
             listeners: this.getTreeNodeListeners()
         });
 
@@ -265,7 +265,7 @@ pimcore.asset.tree = Class.create({
             }.bind(this);
 
             pimcore.helpers.uploadAssetFromFileObject(file,
-                "/admin/asset/add-asset?parentId=" + parentNode.id + "&dir=" + path,
+                Routing.generate('pimcore_admin_asset_addasset', {parentId: parentNode.id, dir: path}),
                 finishedErrorHandler,
                 function (evt) {
                     //progress
@@ -408,13 +408,21 @@ pimcore.asset.tree = Class.create({
                     this.tree.loadMask.hide();
                     pimcore.helpers.showNotification(t("error"), t("cant_move_node_to_target"),
                         "error",t(rdata.message));
-                    pimcore.elementservice.refreshNode(oldParent);
+                    // we have to delay refresh between two nodes,
+                    // as there could be parent child relationship leading to race condition
+                    window.setTimeout(function () {
+                        pimcore.elementservice.refreshNode(oldParent);
+                    }, 500);
                     pimcore.elementservice.refreshNode(newParent);
                 }
             } catch(e){
                 this.tree.loadMask.hide();
                 pimcore.helpers.showNotification(t("error"), t("cant_move_node_to_target"), "error");
-                pimcore.elementservice.refreshNode(oldParent);
+                // we have to delay refresh between two nodes,
+                // as there could be parent child relationship leading to race condition
+                window.setTimeout(function () {
+                    pimcore.elementservice.refreshNode(oldParent);
+                }, 500);
                 pimcore.elementservice.refreshNode(newParent);
             }
             this.tree.loadMask.hide();
@@ -678,7 +686,7 @@ pimcore.asset.tree = Class.create({
                         text: t('download'),
                         iconCls: "pimcore_icon_download",
                         handler: function () {
-                            pimcore.helpers.download("/admin/asset/download?id=" + record.data.id);
+                            pimcore.helpers.download(Routing.generate('pimcore_admin_asset_download', {id: record.data.id}));
                         }
                     }));
                 }
@@ -834,7 +842,7 @@ pimcore.asset.tree = Class.create({
         pimcore.helpers.addTreeNodeLoadingIndicator("asset", record.id);
 
         Ext.Ajax.request({
-            url: "/admin/asset/copy-info",
+            url: Routing.generate('pimcore_admin_asset_copyinfo'),
             params: {
                 targetId: record.id,
                 sourceId: pimcore.cachedAssetId,
@@ -930,7 +938,7 @@ pimcore.asset.tree = Class.create({
             }
 
             Ext.Ajax.request({
-                url: "/admin/asset/add-folder",
+                url: Routing.generate('pimcore_admin_asset_addfolder'),
                 method: "POST",
                 params: {
                     parentId: record.data.id,
@@ -975,7 +983,8 @@ pimcore.asset.tree = Class.create({
     },
 
     uploadZip: function (tree, record) {
-        pimcore.helpers.uploadDialog("/admin/asset/import-zip?parentId=" + record.id, "Filedata", function (response) {
+
+        pimcore.helpers.uploadDialog(Routing.generate('pimcore_admin_asset_importzip', {parentId: record.id}), "Filedata", function (response) {
             // this.attributes.reference
             var res = Ext.decode(response.response.responseText);
             pimcore.helpers.addTreeNodeLoadingIndicator("asset", record.get("id"));
@@ -1082,7 +1091,7 @@ pimcore.asset.tree = Class.create({
         var store = Ext.create('Ext.data.TreeStore', {
             proxy: {
                 type: 'ajax',
-                url: "/admin/misc/fileexplorer-tree"
+                url: Routing.generate('pimcore_admin_misc_fileexplorertree')
             },
             folderSort: true,
             sorters: [{
@@ -1141,7 +1150,7 @@ pimcore.asset.tree = Class.create({
                         this.uploadWindow.updateLayout();
 
                         Ext.Ajax.request({
-                            url: "/admin/asset/import-server",
+                            url: Routing.generate('pimcore_admin_asset_importserver'),
                             method: 'POST',
                             params: {
                                 parentId: record.id,
@@ -1225,7 +1234,7 @@ pimcore.asset.tree = Class.create({
                 win.show();
 
                 Ext.Ajax.request({
-                    url: "/admin/asset/import-url",
+                    url: Routing.generate('pimcore_admin_asset_importurl'),
                     method: 'POST',
                     params: {
                         id: record.data.id,

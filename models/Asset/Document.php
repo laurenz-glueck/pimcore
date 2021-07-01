@@ -1,18 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @category   Pimcore
- * @package    Asset
- *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Model\Asset;
@@ -28,17 +26,16 @@ use Pimcore\Model\Tool\TmpStore;
 class Document extends Model\Asset
 {
     /**
-     * @var string
+     * {@inheritdoc}
      */
     protected $type = 'document';
 
     /**
-     * @param array $params additional parameters (e.g. "versionNote" for the version note)
-     *
-     * @throws \Exception
+     * {@inheritdoc}
      */
     protected function update($params = [])
     {
+        parent::update($params);
         $this->clearThumbnails();
 
         if ($this->getDataChanged() && \Pimcore\Document::isAvailable()) {
@@ -50,29 +47,16 @@ class Document extends Model\Asset
                 TmpStore::add(sprintf('asset_document_conversion_%d', $this->getId()), $this->getId(), 'asset-document-conversion');
             }
         }
-
-        parent::update($params);
     }
 
     /**
-     * @inheritdoc
-     */
-    public function delete(bool $isNested = false)
-    {
-        parent::delete($isNested);
-        $this->clearThumbnails(true);
-    }
-
-    /**
+     * @internal
+     *
      * @param string|null $path
      */
     public function processPageCount($path = null)
     {
         $pageCount = null;
-        if (!$path) {
-            $path = $this->getFileSystemPath();
-        }
-
         if (!\Pimcore\Document::isAvailable()) {
             Logger::error("Couldn't create image-thumbnail of document " . $this->getRealFullPath() . ' no document adapter is available');
 
@@ -81,7 +65,7 @@ class Document extends Model\Asset
 
         try {
             $converter = \Pimcore\Document::getInstance();
-            $converter->load($path);
+            $converter->load($this);
 
             // read from blob here, because in $this->update() (see above) $this->getFileSystemPath() contains the old data
             $pageCount = $converter->getPageCount();
@@ -138,7 +122,7 @@ class Document extends Model\Asset
                 $cacheKey = 'asset_document_text_' . $this->getId() . '_' . ($page ? $page : 'all');
                 if (!$text = Cache::load($cacheKey)) {
                     $document = \Pimcore\Document::getInstance();
-                    $text = $document->getText($page, $this->getFileSystemPath());
+                    $text = $document->getText($page, $this);
                     Cache::save($text, $cacheKey, $this->getCacheTags(), null, 99, true); // force cache write
                 }
 
@@ -151,26 +135,5 @@ class Document extends Model\Asset
         }
 
         return null;
-    }
-
-    /**
-     * @param bool $force
-     */
-    public function clearThumbnails($force = false)
-    {
-        if ($this->_dataChanged || $force) {
-            // video thumbnails and image previews
-            $files = glob(PIMCORE_TEMPORARY_DIRECTORY . '/document-image-cache/document_' . $this->getId() . '__*');
-            if (is_array($files)) {
-                foreach ($files as $file) {
-                    unlink($file);
-                }
-            }
-
-            $files = glob($this->getImageThumbnailSavePath() . '/image-thumb__' . $this->getId() . '__*');
-            foreach ($files as $file) {
-                recursiveDelete($file);
-            }
-        }
     }
 }

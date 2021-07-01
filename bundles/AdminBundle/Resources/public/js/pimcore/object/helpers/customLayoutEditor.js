@@ -3,19 +3,19 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.helpers.customLayoutEditor");
 pimcore.object.helpers.customLayoutEditor = Class.create({
 
-    uploadUrl: '/admin/class/import-custom-layout-definition',
-    exportUrl: "/admin/class/export-custom-layout-definition",
+    uploadRoute: 'pimcore_admin_dataobject_class_importcustomlayoutdefinition',
+    exportRoute: 'pimcore_admin_dataobject_class_exportcustomlayoutdefinition',
 
     data: {},
 
@@ -99,11 +99,11 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
     },
 
     getUploadUrl: function(){
-        return this.uploadUrl + '?id=' + this.data.id;
+        return Routing.generate(this.uploadRoute, {id: this.data.id});
     },
 
     getExportUrl: function() {
-        return  this.exportUrl + "?id=" + this.data.id;
+        return Routing.generate(this.exportRoute, {id: this.data.id});
     },
 
     getNodeData: function (node) {
@@ -199,7 +199,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
         this.layoutComboStore = new Ext.data.Store({
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-custom-layout-definitions',
+                url: Routing.generate('pimcore_admin_dataobject_class_getcustomlayoutdefinitions'),
                 extraParams: {
                     classId: this.klass.id
                 },
@@ -236,7 +236,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
                     var layoutId = field.value;
                     this.editPanel.removeAll();
                     Ext.Ajax.request({
-                        url: "/admin/class/get-custom-layout",
+                        url: Routing.generate('pimcore_admin_dataobject_class_getcustomlayout'),
                         params: {
                             id: layoutId
                         },
@@ -457,7 +457,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
 
     getClassDefinitionPanel: function () {
         if (!this.classDefinitionPanel) {
-            this.classDefinitionPanel = this.getClassTree("/admin/class/get", this.klass.id);
+            this.classDefinitionPanel = this.getClassTree(Routing.generate('pimcore_admin_dataobject_class_get'), this.klass.id);
         }
 
         return this.classDefinitionPanel;
@@ -627,7 +627,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
 
     suggestIdentifier: function() {
         Ext.Ajax.request({
-            url: "/admin/class/suggest-custom-layout-identifier",
+            url: Routing.generate('pimcore_admin_dataobject_class_suggestcustomlayoutidentifier'),
             params: {
                 classId: this.klass.id,
             },
@@ -771,12 +771,12 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
 
             if (this.getDataSuccess) {
                 Ext.Ajax.request({
-                    url: "/admin/class/save-custom-layout",
+                    url: Routing.generate('pimcore_admin_dataobject_class_savecustomlayout'),
                     method: "PUT",
                     params: {
                         configuration: m,
                         values: n,
-                        id: this.data.id
+                        id: this.currentLayoutId
                     },
                     success: this.saveOnComplete.bind(this),
                     failure: this.saveOnError.bind(this)
@@ -892,7 +892,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
         }
 
         Ext.Ajax.request({
-            url: "/admin/class/add-custom-layout",
+            url: Routing.generate('pimcore_admin_dataobject_class_addcustomlayout'),
             method: 'POST',
             params: {
                 layoutName: layoutName,
@@ -906,6 +906,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
                     this.setCurrentNode("root");
                     this.editPanel.removeAll();
                     this.classDefinitionPanel.enable();
+                    this.data = data.data;
                     this.enableButtons();
                     this.layoutComboStore.reload();
                     this.currentLayoutId = data.id;
@@ -933,7 +934,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
         Ext.Msg.confirm(t('delete'), t('delete_message'), function(btn){
             if (btn == 'yes'){
                 Ext.Ajax.request({
-                    url: "/admin/class/delete-custom-layout",
+                    url: Routing.generate('pimcore_admin_dataobject_class_deletecustomlayout'),
                     method: 'DELETE',
                     params: {
                         id: id
@@ -960,7 +961,7 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
         pimcore.helpers.uploadDialog(this.getUploadUrl(), "Filedata", function() {
             var layoutId = this.data.id;
             Ext.Ajax.request({
-                url: "/admin/class/get-custom-layout",
+                url: Routing.generate('pimcore_admin_dataobject_class_getcustomlayout'),
                 params: {
                     id: layoutId
                 },
@@ -979,8 +980,9 @@ pimcore.object.helpers.customLayoutEditor = Class.create({
     },
 
     enableButtons: function() {
-        this.saveButton.enable();
-        this.importButton.enable();
+
+        this.saveButton.setDisabled(!this.data.isWriteable);
+        this.importButton.setDisabled(!this.data.isWriteable);
         this.exportButton.enable();
     }
 

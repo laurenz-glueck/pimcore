@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\EcommerceFrameworkBundle\Tracking\Tracker;
@@ -46,7 +47,7 @@ class GoogleTagManager extends Tracker implements
     const DEFERRED_DIMENSION_IMPRESSIONS = 'impressions';
 
     const DEFERRED_DIMENSIONS = [
-        self::DEFERRED_DIMENSION_IMPRESSIONS
+        self::DEFERRED_DIMENSION_IMPRESSIONS,
     ];
 
     /** @var string[] */
@@ -60,12 +61,12 @@ class GoogleTagManager extends Tracker implements
         parent::configureOptions($resolver);
 
         $resolver->setDefaults([
-            'template_prefix' => 'PimcoreEcommerceFrameworkBundle:Tracking/analytics/tagManager',
+            'template_prefix' => '@PimcoreEcommerceFramework/Tracking/analytics/tagManager',
         ]);
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function trackProductImpression(ProductInterface $product, string $list = 'default')
     {
@@ -96,13 +97,13 @@ class GoogleTagManager extends Tracker implements
 
     public function trackCartProductActionAdd(CartInterface $cart, ProductInterface $product, $quantity = 1)
     {
-        $item = $this->trackingItemBuilder->buildProductActionItem($product, $quantity = 1);
+        $item = $this->trackingItemBuilder->buildProductActionItem($product, $quantity);
 
         $productArray = $this->transformProductAction($item);
 
         $call = [
+            'event' => 'addToCart',
             'ecommerce' => [
-                'event' => 'addToCart',
                 'add' => [
                     'products' => [
                         $productArray,
@@ -123,8 +124,8 @@ class GoogleTagManager extends Tracker implements
         $productArray = $this->transformProductAction($item);
 
         $call = [
+            'event' => 'removeFromCart',
             'ecommerce' => [
-                'event' => 'removeFromCart',
                 'remove' => [
                     'products' => [
                         $productArray,
@@ -191,7 +192,7 @@ class GoogleTagManager extends Tracker implements
         $items = $this->trackingItemBuilder->buildCheckoutItems($order);
 
         $call = [
-            'event' => 'checkout',
+            'event' => 'purchase',
             'ecommerce' => [
                 'currencyCode' => $order->getCurrency(),
                 'purchase' => [
@@ -298,7 +299,7 @@ class GoogleTagManager extends Tracker implements
      */
     private function formatPrice($price = null)
     {
-        return Decimal::fromNumeric($price)->asString();
+        return is_scalar($price) ? Decimal::fromNumeric($price)->asString() : '';
     }
 
     /**

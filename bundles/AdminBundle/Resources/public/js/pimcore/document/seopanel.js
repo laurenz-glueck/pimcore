@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.document.seopanel");
@@ -48,7 +48,7 @@ pimcore.document.seopanel = Class.create({
             pimcore.layout.refresh();
 
             Ext.Ajax.request({
-                url: "/admin/document/seopanel-tree-root",
+                url: Routing.generate('pimcore_admin_document_document_seopaneltreeroot'),
                 success: function (response) {
                     var res = Ext.decode(response.responseText);
                     if(res["id"]) {
@@ -100,7 +100,7 @@ pimcore.document.seopanel = Class.create({
         var store = Ext.create('Ext.data.TreeStore', {
             proxy: {
                 type: 'ajax',
-                url: '/admin/document/seopanel-tree'
+                url: Routing.generate('pimcore_admin_document_document_seopaneltree')
             }
         });
 
@@ -249,13 +249,13 @@ pimcore.document.seopanel = Class.create({
         this.editWindow.close();
 
         Ext.Ajax.request({
-            url: "/admin/document/update",
+            url: Routing.generate('pimcore_admin_document_document_update'),
             method: "PUT",
             params: values,
             success: function (node) {
                 if (values.id == 1) {
                     Ext.Ajax.request({
-                        url: "/admin/document/seopanel-tree-root",
+                        url: Routing.generate('pimcore_admin_document_document_seopaneltreeroot'),
                         success: function (response) {
                             var cfg = Ext.decode(response.responseText);
                             if(cfg.id) { // We are the root node

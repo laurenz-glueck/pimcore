@@ -1,21 +1,21 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin\Document;
 
 use Pimcore\Controller\Traits\ElementEditLockHelperTrait;
-use Pimcore\Event\Admin\ElementAdminStyleEvent;
 use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\Document;
@@ -23,22 +23,56 @@ use Pimcore\Model\Element;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * @Route("/link")
+ *
+ * @internal
  */
 class LinkController extends DocumentControllerBase
 {
     use ElementEditLockHelperTrait;
 
     /**
-     * @Route("/get-data-by-id", methods={"GET"})
+     * @Route("/save-to-session", name="pimcore_admin_document_link_savetosession", methods={"POST"})
+     *
+     * {@inheritDoc}
+     */
+    public function saveToSessionAction(Request $request)
+    {
+        return parent::saveToSessionAction($request);
+    }
+
+    /**
+     * @Route("/remove-from-session", name="pimcore_admin_document_link_removefromsession", methods={"DELETE"})
+     *
+     * {@inheritDoc}
+     */
+    public function removeFromSessionAction(Request $request)
+    {
+        return parent::removeFromSessionAction($request);
+    }
+
+    /**
+     * @Route("/change-master-document", name="pimcore_admin_document_link_changemasterdocument", methods={"PUT"})
+     *
+     * {@inheritDoc}
+     */
+    public function changeMasterDocumentAction(Request $request)
+    {
+        return parent::changeMasterDocumentAction($request);
+    }
+
+    /**
+     * @Route("/get-data-by-id", name="pimcore_admin_document_link_getdatabyid", methods={"GET"})
      *
      * @param Request $request
+     * @param SerializerInterface $serializer
      *
      * @return JsonResponse
      */
-    public function getDataByIdAction(Request $request)
+    public function getDataByIdAction(Request $request, SerializerInterface $serializer)
     {
         $link = Document\Link::getById($request->get('id'));
 
@@ -61,8 +95,6 @@ class LinkController extends DocumentControllerBase
         $link->setParent(null);
         $link->getScheduledTasks();
 
-        $serializer = $this->get('pimcore_admin.serializer');
-
         $data = $serializer->serialize($link->getObjectVars(), 'json', []);
         $data = json_decode($data, true);
         $data['rawHref'] = $link->getRawHref();
@@ -80,7 +112,7 @@ class LinkController extends DocumentControllerBase
     }
 
     /**
-     * @Route("/save", methods={"POST", "PUT"})
+     * @Route("/save", name="pimcore_admin_document_link_save", methods={"POST", "PUT"})
      *
      * @param Request $request
      *
@@ -116,15 +148,15 @@ class LinkController extends DocumentControllerBase
         ) {
             $link->save();
 
-            $this->addAdminStyle($link, ElementAdminStyleEvent::CONTEXT_EDITOR, $treeData);
+            $treeData = $this->getTreeNodeConfig($link);
 
             return $this->adminJson([
                 'success' => true,
                 'data' => [
                     'versionDate' => $link->getModificationDate(),
-                    'versionCount' => $link->getVersionCount()
+                    'versionCount' => $link->getVersionCount(),
                 ],
-                'treeData' => $treeData
+                'treeData' => $treeData,
             ]);
         } else {
             throw $this->createAccessDeniedHttpException();

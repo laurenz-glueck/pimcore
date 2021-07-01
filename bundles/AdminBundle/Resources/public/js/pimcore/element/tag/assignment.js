@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.element.tag.assignment");
@@ -26,7 +26,7 @@ pimcore.element.tag.assignment = Class.create({
             var gridStore = Ext.create("Ext.data.Store", {
                 proxy: {
                     type: 'ajax',
-                    url: '/admin/tags/load-tags-for-element',
+                    url: Routing.generate('pimcore_admin_tags_loadtagsforelement'),
                     extraParams: {
                         assignmentCId: this.element.id,
                         assignmentCType: this.elementType
@@ -54,7 +54,7 @@ pimcore.element.tag.assignment = Class.create({
                     gridStore.add(record);
 
                     Ext.Ajax.request({
-                        url: "/admin/tags/add-tag-to-element",
+                        url: Routing.generate('pimcore_admin_tags_addtagtoelement'),
                         method: 'PUT',
                         params: {
                             assignmentElementId: this.element.id,
@@ -147,7 +147,7 @@ pimcore.element.tag.assignment = Class.create({
 
     removeTagFromElement: function(tagId) {
         Ext.Ajax.request({
-            url: "/admin/tags/remove-tag-from-element",
+            url: Routing.generate('pimcore_admin_tags_removetagfromelement'),
             method: 'DELETE',
             params: {
                 assignmentElementId: this.element.id,
@@ -160,7 +160,7 @@ pimcore.element.tag.assignment = Class.create({
 
     prepareBatchUpdate: function(removeAndApply) {
         Ext.Ajax.request({
-            url: "/admin/tags/get-batch-assignment-jobs",
+            url: Routing.generate('pimcore_admin_tags_getbatchassignmentjobs'),
             params: {
                 elementId: this.element.id,
                 elementType: this.elementType
@@ -188,7 +188,7 @@ pimcore.element.tag.assignment = Class.create({
 
                     for (var i=0; i<responseJson.idLists.length; i++) {
                         jobs.push({
-                            url: "/admin/tags/do-batch-assignment",
+                            url: Routing.generate('pimcore_admin_tags_dobatchassignment'),
                             method: 'PUT',
                             params: array_merge(params, {
                                 childrenIds: Ext.encode(responseJson.idLists[i])

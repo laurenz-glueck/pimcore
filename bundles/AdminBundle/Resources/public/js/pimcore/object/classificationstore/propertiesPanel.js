@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.classificationstore.propertiespanel");
@@ -77,7 +77,7 @@ pimcore.object.classificationstore.propertiespanel = Class.create({
         });
 
         var proxy = {
-            url: "/admin/classificationstore/properties",
+            url: Routing.generate('pimcore_admin_dataobject_classificationstore_propertiesget'),
             batchActions: false,
             type: 'ajax',
             reader: {
@@ -196,7 +196,7 @@ pimcore.object.classificationstore.propertiespanel = Class.create({
                         var id = data.data.id;
 
                         Ext.Ajax.request({
-                            url: "/admin/classificationstore/delete-property",
+                            url: Routing.generate('pimcore_admin_dataobject_classificationstore_deleteproperty'),
                             method: 'DELETE',
                             params: {
                                 id: id
@@ -324,7 +324,7 @@ pimcore.object.classificationstore.propertiespanel = Class.create({
         value = value.trim();
         if (button == "ok" && value.length > 1) {
             Ext.Ajax.request({
-                url: "/admin/classificationstore/add-property",
+                url: Routing.generate('pimcore_admin_dataobject_classificationstore_addproperty'),
                 method: 'POST',
                 params: {
                     name: value,
@@ -405,7 +405,7 @@ pimcore.object.classificationstore.propertiespanel = Class.create({
        this.store.clearFilter(true);
 
        Ext.Ajax.request({
-           url: "/admin/classificationstore/get-page",
+           url: Routing.generate('pimcore_admin_dataobject_classificationstore_getpage'),
            params: params,
            success: function(response) {
                try {

@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 
@@ -51,43 +51,22 @@ Ext.Loader.setConfig({
 });
 Ext.enableAriaButtons = false;
 
-Ext.Loader.setPath('Ext.ux', '/bundles/pimcoreadmin/js/lib/ext/ux');
+Ext.Loader.setPath('Ext.ux', '/bundles/pimcoreadmin/extjs/ext-ux/src/classic/src');
 
 Ext.require([
-    'Ext.button.Split',
-    'Ext.container.Viewport',
-    'Ext.data.JsonStore',
-    'Ext.grid.column.Action',
-    'Ext.grid.plugin.CellEditing',
-    'Ext.form.field.ComboBox',
-    'Ext.form.field.Hidden',
-    'Ext.grid.column.Check',
-    'Ext.grid.property.Grid',
-    'Ext.form.field.Time',
-    'Ext.form.FieldSet',
-    'Ext.form.Label',
-    'Ext.form.Panel',
-    'Ext.grid.feature.Grouping',
-    'Ext.grid.Panel',
-    'Ext.grid.plugin.DragDrop',
-    'Ext.layout.container.Accordion',
-    'Ext.layout.container.Border',
-    'Ext.tip.QuickTipManager',
-    'Ext.tab.Panel',
-    'Ext.toolbar.Paging',
-    'Ext.toolbar.Spacer',
-    'Ext.tree.plugin.TreeViewDragDrop',
-    'Ext.tree.Panel',
     'Ext.ux.colorpick.Field',
     'Ext.ux.colorpick.SliderAlpha',
-    'Ext.ux.DataTip',
     'Ext.ux.form.MultiSelect',
     'Ext.ux.TabCloseMenu',
     'Ext.ux.TabReorderer',
     'Ext.ux.grid.SubTable',
-    'Ext.window.Toast'
+    'Ext.window.Toast',
+    'Ext.slider.Single',
+    'Ext.form.field.Tag',
+    'Ext.ux.TabMiddleButtonClose'
 ]);
 
+Ext.ariaWarn = Ext.emptyFn;
 
 Ext.onReady(function () {
 
@@ -186,11 +165,13 @@ Ext.onReady(function () {
     Ext.Ajax.on('requestexception', function (conn, response, options) {
         console.log("xhr request failed");
 
-        var jsonData = null;
-        try {
-            jsonData = Ext.decode(response.responseText);
-        } catch (e) {
+        var jsonData = response.responseJson;
+        if (!jsonData) {
+            try {
+                jsonData = Ext.decode(response.responseText);
+            } catch (e) {
 
+            }
         }
 
         var date = new Date();
@@ -279,7 +260,6 @@ Ext.onReady(function () {
     var user = new pimcore.user(pimcore.currentuser);
     pimcore.globalmanager.add("user", user);
 
-    var docTypesUrl = '/admin/document/doc-types?';
     // document types
     Ext.define('pimcore.model.doctypes', {
         extend: 'Ext.data.Model',
@@ -293,9 +273,18 @@ Ext.onReady(function () {
                 },
                 depends : ['name']
             },
-            'module',
+            'group',
+            {
+                name: "translatedGroup",
+                convert: function (v, rec) {
+                    if (rec.data.group) {
+                        return t(rec.data.group);
+                    }
+                    return '';
+                },
+                depends : ['group']
+            },
             'controller',
-            'action',
             'template',
             {name: 'type', allowBlank: false},
             'priority',
@@ -317,10 +306,10 @@ Ext.onReady(function () {
                 encode: 'true'
             },
             api: {
-                create: docTypesUrl + "xaction=create",
-                read: docTypesUrl + "xaction=read",
-                update: docTypesUrl + "xaction=update",
-                destroy: docTypesUrl + "xaction=destroy"
+                create: Routing.generate('pimcore_admin_document_document_doctypesget', {xaction: "create"}),
+                read: Routing.generate('pimcore_admin_document_document_doctypesget', {xaction: "read"}),
+                update: Routing.generate('pimcore_admin_document_document_doctypesget', {xaction: "update"}),
+                destroy: Routing.generate('pimcore_admin_document_document_doctypesget', {xaction: "destroy"}),
             }
         }
     });
@@ -347,12 +336,24 @@ Ext.onReady(function () {
         {name: 'id'},
         {name: 'text', allowBlank: false},
         {
-            name: "translatedText", convert: function (v, rec) {
+            name: "translatedText",
+            convert: function (v, rec) {
                 return t(rec.data.text);
-            }
+            },
+            depends : ['text']
         },
         {name: 'icon'},
         {name: 'group'},
+        {
+            name: "translatedGroup",
+            convert: function (v, rec) {
+                if (rec.data.group) {
+                    return t(rec.data.group);
+                }
+                return '';
+            },
+            depends : ['group']
+        },
         {name: "propertyVisibility"}
     ];
 
@@ -361,7 +362,7 @@ Ext.onReady(function () {
         fields: objectClassFields,
         proxy: {
             type: 'ajax',
-            url: '/admin/class/get-tree',
+            url: Routing.generate('pimcore_admin_dataobject_class_gettree'),
             reader: {
                 type: 'json'
             }
@@ -383,7 +384,7 @@ Ext.onReady(function () {
         fields: objectClassFields,
         proxy: {
             type: 'ajax',
-            url: '/admin/class/get-tree?createAllowed=true',
+            url: Routing.generate('pimcore_admin_dataobject_class_gettree', {createAllowed: true}),
             reader: {
                 type: 'json'
             }
@@ -410,7 +411,7 @@ Ext.onReady(function () {
         ],
         proxy: {
             type: 'ajax',
-            url: '/admin/settings/get-available-admin-languages',
+            url: Routing.generate('pimcore_admin_settings_getavailableadminlanguages'),
             reader: {
                 type: 'json'
             }
@@ -429,7 +430,7 @@ Ext.onReady(function () {
         fields: ["id", "domains", "rootId", "rootPath", "domain"],
         proxy: {
             type: 'ajax',
-            url: '/admin/settings/get-available-sites',
+            url: Routing.generate('pimcore_admin_settings_getavailablesites'),
             reader: {
                 type: 'json'
             }
@@ -455,7 +456,7 @@ Ext.onReady(function () {
         model: "pimcore.model.target_groups",
         proxy: {
             type: 'ajax',
-            url: '/admin/targeting/target-group/list',
+            url: Routing.generate('pimcore_admin_targeting_targetgrouplist'),
             reader: {
                 type: 'json'
             }
@@ -521,14 +522,14 @@ Ext.onReady(function () {
 
                 if (data.pushStatistics) {
                     var request = new XMLHttpRequest();
-                    request.open('GET', "/admin/index/statistics", false);
+                    request.open('GET', Routing.generate('pimcore_admin_index_statistics'));
 
                     request.onload = function () {
                         if (this.status >= 200 && this.status < 400) {
                             var res = Ext.decode(this.response);
 
                             var request = new XMLHttpRequest();
-                            request.open('POST', "https://liveupdate.pimcore.org/statistics", false);
+                            request.open('POST', "https://liveupdate.pimcore.org/statistics");
 
                             var data = new FormData();
                             data.append('data', encodeURIComponent(JSON.stringify(res)));
@@ -758,6 +759,12 @@ Ext.onReady(function () {
                         if (user.isAllowed(treetype + "s")) {
                             treepanel = Ext.getCmp("pimcore_panel_tree_" + side);
 
+                            // Do not add pimcore_icon_material class to non-material icons
+                            let iconTypeClass = '';
+                            if (treeConfig.icon.match('flat-white')) {
+                                iconTypeClass += 'pimcore_icon_material';
+                            }
+
                             var treeCls = window.pimcore[treetype].customviews.tree;
 
                             tree = new treeCls({
@@ -767,7 +774,7 @@ Ext.onReady(function () {
                                 rootId: treeConfig.rootId,
                                 rootVisible: treeConfig.showroot,
                                 treeId: "pimcore_panel_tree_" + treetype + "_" + treeConfig.id,
-                                treeIconCls: "pimcore_" + treetype + "_customview_icon_" + treeConfig.id + " pimcore_icon_material",
+                                treeIconCls: "pimcore_" + treetype + "_customview_icon_" + treeConfig.id + " " + iconTypeClass,
                                 treeTitle: t(treeConfig.name),
                                 parentPanel: treepanel,
                                 loaderBaseParams: {}
@@ -859,7 +866,7 @@ Ext.onReady(function () {
     var quicksearchStore = new Ext.data.Store({
         proxy: {
             type: 'ajax',
-            url: '/admin/search/search/quicksearch',
+            url: Routing.generate('pimcore_admin_searchadmin_search_quicksearch'),
             reader: {
                 type: 'json',
                 rootProperty: 'data'
@@ -901,8 +908,7 @@ Ext.onReady(function () {
             navigationModel: 'quicksearch.boundlist',
             listeners: {
                 "highlightitem": function (view, node, opts) {
-                    // we use getAttribute() here instead of dataset -> IE11 has some strange issues with that in this case
-                    var record = quicksearchStore.getAt(node.getAttribute('data-recordIndex'));
+                    var record = quicksearchStore.getAt(node.dataset.recordindex);
                     var previewHtml = record.get('preview');
                     if(!previewHtml) {
                         previewHtml = '<div class="no_preview">' + t('preview_not_available') + '</div>';
@@ -971,7 +977,7 @@ pimcore["intervals"]["translations_admin_missing"] = window.setInterval(function
         pimcore.globalmanager.add("translations_admin_missing", restMissingTranslations);
         Ext.Ajax.request({
             method: "POST",
-            url: "/admin/translation/add-admin-translation-keys",
+            url: Routing.generate('pimcore_admin_translation_addadmintranslationkeys'),
             params: {keys: params}
         });
     }
@@ -980,7 +986,7 @@ pimcore["intervals"]["translations_admin_missing"] = window.setInterval(function
 // session renew
 pimcore["intervals"]["ping"] = window.setInterval(function () {
     Ext.Ajax.request({
-        url: "/admin/misc/ping",
+        url: Routing.generate('pimcore_admin_misc_ping'),
         success: function (response) {
 
             var data;
@@ -994,7 +1000,7 @@ pimcore["intervals"]["ping"] = window.setInterval(function () {
             } catch (e) {
                 data = false;
                 pimcore.settings.showCloseConfirmation = false;
-                window.location.href = "/admin/login?session_expired=true";
+                window.location.href = Routing.generate('pimcore_admin_login', {session_expired: true});
             }
 
             if (pimcore.maintenanceWindow) {
@@ -1012,7 +1018,8 @@ pimcore["intervals"]["ping"] = window.setInterval(function () {
         failure: function (response) {
             if (response.status != 503) {
                 pimcore.settings.showCloseConfirmation = false;
-                window.location.href = "/admin/login?session_expired=true&server_error=true";
+                window.location.href = Routing.generate('pimcore_admin_login', {session_expired: true, server_error: true});
+
             }
         }
     });

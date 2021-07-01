@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.asset.folder");
@@ -47,7 +47,7 @@ pimcore.asset.folder = Class.create(pimcore.asset.asset, {
 
         var proxy = {
             type: 'ajax',
-            url: '/admin/asset/get-folder-content-preview',
+            url: Routing.generate('pimcore_admin_asset_getfoldercontentpreview'),
             reader: {
                 type: 'json',
                 rootProperty: 'assets'
@@ -256,7 +256,7 @@ pimcore.asset.folder = Class.create(pimcore.asset.asset, {
             if (this.isAllowed("rename") && !this.data.locked && this.data.id != 1) {
                 buttons.push(this.toolbarButtons.rename);
             }
-            
+
             buttons.push({
                 tooltip: t("download_as_zip"),
                 iconCls: "pimcore_material_icon_download_zip pimcore_material_icon",

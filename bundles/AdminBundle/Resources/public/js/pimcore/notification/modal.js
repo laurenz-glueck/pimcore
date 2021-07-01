@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 pimcore.registerNS("pimcore.notification.modal");
 
@@ -28,7 +28,7 @@ pimcore.notification.modal = Class.create({
             var recipientStore = Ext.create("Ext.data.JsonStore", {
                 proxy: {
                     type: "ajax",
-                    url: "/admin/notification/recipients"
+                    url: Routing.generate('pimcore_admin_notification_recipients')
                 }
             });
             recipientStore.load();
@@ -120,7 +120,7 @@ pimcore.notification.modal = Class.create({
                 border: false,
                 frame: false,
                 bodyStyle: "padding:10px",
-                url: "/admin/notification/send",
+                url: Routing.generate('pimcore_admin_notification_send'),
                 items: items,
                 defaults: {labelWidth: 100},
                 collapsible: false,

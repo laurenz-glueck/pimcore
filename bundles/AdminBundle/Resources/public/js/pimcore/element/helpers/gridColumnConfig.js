@@ -3,17 +3,19 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 
 pimcore.registerNS("pimcore.element.helpers.gridColumnConfig");
 pimcore.element.helpers.gridColumnConfig = {
+
+    batchJobDelay: 50,
 
     getSaveAsDialog: function () {
         var defaultName = new Date();
@@ -77,9 +79,21 @@ pimcore.element.helpers.gridColumnConfig = {
     },
 
     deleteGridConfigConfirmed: function (btn) {
-        if (btn == 'ok') {
+        var route = null;
+
+        if (this.gridType === 'asset') {
+            route = 'pimcore_admin_asset_assethelper_griddeletecolumnconfig';
+        }
+        else if(this.gridType === 'object') {
+            route = 'pimcore_admin_dataobject_dataobjecthelper_griddeletecolumnconfig';
+        }
+        else {
+            throw new Error('Type unknown');
+        }
+
+        if (btn === 'ok') {
             Ext.Ajax.request({
-                url: "/admin/" + this.gridType + "-helper/grid-delete-column-config",
+                url: Routing.generate(route),
                 method: "DELETE",
                 params: {
                     id: this.classId,
@@ -188,12 +202,12 @@ pimcore.element.helpers.gridColumnConfig = {
         }
     },
 
-    saveConfig: function (asCopy) {
+    saveConfig: function (asCopy, context) {
         if (asCopy) {
             this.getSaveAsDialog();
         } else {
             pimcore.helpers.saveColumnConfig(this.object.id, this.classId, this.getGridConfig(), this.searchType, this.saveColumnConfigButton,
-                this.columnConfigurationSavedHandler.bind(this), this.settings, this.gridType);
+                this.columnConfigurationSavedHandler.bind(this), this.settings, this.gridType, this.context);
         }
     },
 
@@ -375,17 +389,17 @@ pimcore.element.helpers.gridColumnConfig = {
             for (var i = 0; i < selectedRows.length; i++) {
                 jobs.push(selectedRows[i].get("id"));
             }
-            this.batchOpen(columnIndex, jobs, append, remove, true);
+            this.batchOpen(columnIndex, jobs, append, remove, onlySelected);
 
         } else {
-            let params = this.getGridParams();
+            let params = this.getGridParams(onlySelected);
             Ext.Ajax.request({
                 url: this.batchPrepareUrl,
                 params: params,
                 success: function (columnIndex, response) {
                     var rdata = Ext.decode(response.responseText);
                     if (rdata.success && rdata.jobs) {
-                        this.batchOpen(columnIndex, rdata.jobs, append, remove, false);
+                        this.batchOpen(columnIndex, rdata.jobs, append, remove, onlySelected);
                     }
 
                 }.bind(this, columnIndex)
@@ -414,7 +428,7 @@ pimcore.element.helpers.gridColumnConfig = {
         }
         // HACK END
 
-        if(this.objecttype == "object") {
+        if((this.objecttype === "object") || (this.objecttype === "variant")) {
             if (!fieldInfo.layout || !fieldInfo.layout.layout) {
                 return;
             }
@@ -429,7 +443,16 @@ pimcore.element.helpers.gridColumnConfig = {
             editor.setObject(this.object);
         } else {
             var tagType = this.fieldObject[fieldInfo.dataIndex].layout.fieldtype;
-            var editor = new pimcore.asset.metadata.tags[tagType](null, this.fieldObject[fieldInfo.dataIndex].layout);
+            let layoutInfo = this.fieldObject[fieldInfo.dataIndex].layout
+            try {
+                if (typeof pimcore.asset.metadata.tags[tagType].prototype.prepareBatchEditLayout == "function") {
+                    layoutInfo = pimcore.asset.metadata.tags[tagType].prototype.prepareBatchEditLayout(layoutInfo);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+
+            var editor = new pimcore.asset.metadata.tags[tagType](null, layoutInfo);
             editor.setAsset(this.asset);
         }
 
@@ -576,7 +599,7 @@ pimcore.element.helpers.gridColumnConfig = {
                 window.setTimeout(function () {
                     this.batchJobCurrent++;
                     this.batchProcess(jobs, append, remove);
-                }.bind(this), 400);
+                }.bind(this), this.batchJobDelay);
             }.bind(this, jobs, this.batchParameters.job)
         });
     },
@@ -587,6 +610,9 @@ pimcore.element.helpers.gridColumnConfig = {
         var fields = this.getGridConfig().columns;
         var fieldKeys = Object.keys(fields);
         params["fields[]"] = fieldKeys;
+        if (this.context) {
+            params["context"] = Ext.encode(this.context);
+        }
 
         settings = Ext.encode(settings);
         params["settings"] = settings;
@@ -643,7 +669,7 @@ pimcore.element.helpers.gridColumnConfig = {
                 }
                 Ext.Msg.alert(t("error"), t("error_jobs") + ": " + jobErrors.join(","));
             } else {
-                pimcore.helpers.download(exportType.downloadUrl + "?fileHandle=" + fileHandle);
+                pimcore.helpers.download(exportType.getDownloadUrl(fileHandle));
             }
 
             return;
@@ -658,6 +684,7 @@ pimcore.element.helpers.gridColumnConfig = {
         this.exportParameters.classId = this.classId;
         this.exportParameters.initial = initial ? 1 : 0;
         this.exportParameters.language = this.gridLanguage;
+        this.exportParameters.context = Ext.encode(this.context);
 
         Ext.Ajax.request({
             url: this.exportProcessUrl,
@@ -681,7 +708,7 @@ pimcore.element.helpers.gridColumnConfig = {
                 window.setTimeout(function () {
                     this.exportJobCurrent++;
                     this.exportProcess(jobs, fileHandle, fields, false, settings, exportType);
-                }.bind(this), 400);
+                }.bind(this), this.batchJobDelay);
             }.bind(this, jobs, jobs[this.exportJobCurrent])
         });
     },
@@ -692,7 +719,7 @@ pimcore.element.helpers.gridColumnConfig = {
         this.buildColumnConfigMenu();
     },
 
-    getGridParams: function () {
+    getGridParams: function (onlySelected) {
         var filters = "";
         var condition = "";
         var searchQuery = this.searchField ? this.searchField.getValue() : "";
@@ -720,15 +747,17 @@ pimcore.element.helpers.gridColumnConfig = {
             params["query"] = searchQuery;
         }
 
-        //create the ids array which contains chosen rows to export
-        ids = [];
-        var selectedRows = this.grid.getSelectionModel().getSelection();
-        for (var i = 0; i < selectedRows.length; i++) {
-            ids.push(selectedRows[i].data.id);
-        }
+        if (onlySelected !== false) {
+            //create the ids array which contains chosen rows to export
+            ids = [];
+            var selectedRows = this.grid.getSelectionModel().getSelection();
+            for (var i = 0; i < selectedRows.length; i++) {
+                ids.push(selectedRows[i].data.id);
+            }
 
-        if (ids.length > 0) {
-            params["ids[]"] = ids;
+            if (ids.length > 0) {
+                params["ids[]"] = ids;
+            }
         }
 
         //tags filter

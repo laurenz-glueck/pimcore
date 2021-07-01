@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.report.custom.definition.analytics");
@@ -42,7 +42,7 @@ pimcore.report.custom.definition.analytics = Class.create({
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: "/admin/reports/analytics/get-dimensions",
+                url: Routing.generate('pimcore_admin_reports_analytics_getdimensions'),
                 reader: {
                     type: 'json',
                     rootProperty: "data",
@@ -87,7 +87,7 @@ pimcore.report.custom.definition.analytics = Class.create({
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: "/admin/reports/analytics/get-metrics",
+                url: Routing.generate('pimcore_admin_reports_analytics_getmetrics'),
                 reader: {
                     type: 'json',
                     rootProperty: "data",
@@ -134,7 +134,7 @@ pimcore.report.custom.definition.analytics = Class.create({
             autoLoad: true,
             proxy: {
                 type: 'ajax',
-                url: "/admin/reports/analytics/get-segments",
+                url: Routing.generate('pimcore_admin_reports_analytics_getsegments'),
                 reader: {
                     rootProperty: "data",
                     idProperty: "id"
@@ -206,7 +206,7 @@ pimcore.report.custom.definition.analytics = Class.create({
                         autoLoad: true,
                         proxy: {
                             type: 'ajax',
-                            url: "/admin/reports/analytics/get-profiles",
+                            url: Routing.generate('pimcore_admin_reports_analytics_getprofiles'),
                             reader: {
                                 type: 'json',
                                 rootProperty: "data",

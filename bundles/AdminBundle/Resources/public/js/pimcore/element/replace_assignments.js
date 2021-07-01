@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.element.replace_assignments");
@@ -28,7 +28,7 @@ pimcore.element.replace_assignments = Class.create({
                 pageSize: pimcore.helpers.grid.getDefaultPageSize(),
                 proxy: {
                     type: 'ajax',
-                    url: "/admin/element/find-usages",
+                    url: Routing.generate('pimcore_admin_element_findusages'),
                     reader: {
                         type: 'json',
                         rootProperty: 'data',
@@ -43,8 +43,7 @@ pimcore.element.replace_assignments = Class.create({
                         }
                     }.bind(this),
                     load: function (store, records, success, operation) {
-                        var responseText = operation.getResponse().responseText;
-                        var response = Ext.decode(responseText);
+                        var response = operation.getResponse().responseJson;
                         this.requiredByNote.setHidden(!response.hasHidden);
                         this.panel.updateLayout();
                     }.bind(this)
@@ -303,7 +302,7 @@ pimcore.element.replace_assignments = Class.create({
 
         for (var i = 0; i < selectedRows.length; i++) {
             jobs.push({
-                url: "/admin/element/replace-assignments",
+                url: Routing.generate('pimcore_admin_element_replaceassignments'),
                 method: 'POST',
                 params: array_merge(params, {
                     id: selectedRows[i].get("id"),
@@ -322,7 +321,7 @@ pimcore.element.replace_assignments = Class.create({
         params["sourceId"] = params["id"];
 
         Ext.Ajax.request({
-            url: '/admin/element/get-replace-assignments-batch-jobs',
+            url: Routing.generate('pimcore_admin_element_getreplaceassignmentsbatchjobs'),
             params: params,
             success: function (params, response) {
                 var rdata = Ext.decode(response.responseText);

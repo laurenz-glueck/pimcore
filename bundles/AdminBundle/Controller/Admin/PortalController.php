@@ -1,37 +1,39 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin;
 
 use Pimcore\Analytics\Google\Config\SiteConfigProvider;
 use Pimcore\Bundle\AdminBundle\Controller\AdminController;
-use Pimcore\Controller\EventedControllerInterface;
+use Pimcore\Controller\KernelControllerEventInterface;
 use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\Document;
 use Pimcore\Model\Site;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
-use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
+use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * @Route("/portal")
+ *
+ * @internal
  */
-class PortalController extends AdminController implements EventedControllerInterface
+class PortalController extends AdminController implements KernelControllerEventInterface
 {
     /**
      * @var \Pimcore\Helper\Dashboard
@@ -58,7 +60,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/dashboard-list", methods={"GET"})
+     * @Route("/dashboard-list", name="pimcore_admin_portal_dashboardlist", methods={"GET"})
      *
      * @param Request $request
      *
@@ -79,7 +81,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/create-dashboard", methods={"POST"})
+     * @Route("/create-dashboard", name="pimcore_admin_portal_createdashboard", methods={"POST"})
      *
      * @param Request $request
      *
@@ -102,7 +104,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/delete-dashboard", methods={"DELETE"})
+     * @Route("/delete-dashboard", name="pimcore_admin_portal_deletedashboard", methods={"DELETE"})
      *
      * @param Request $request
      *
@@ -117,7 +119,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/get-configuration", methods={"GET"})
+     * @Route("/get-configuration", name="pimcore_admin_portal_getconfiguration", methods={"GET"})
      *
      * @param Request $request
      *
@@ -129,7 +131,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/remove-widget", methods={"DELETE"})
+     * @Route("/remove-widget", name="pimcore_admin_portal_removewidget", methods={"DELETE"})
      *
      * @param Request $request
      *
@@ -157,7 +159,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/add-widget", methods={"POST"})
+     * @Route("/add-widget", name="pimcore_admin_portal_addwidget", methods={"POST"})
      *
      * @param Request $request
      *
@@ -183,7 +185,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/reorder-widget", methods={"PUT"})
+     * @Route("/reorder-widget", name="pimcore_admin_portal_reorderwidget", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -216,7 +218,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/update-portlet-config", methods={"PUT"})
+     * @Route("/update-portlet-config", name="pimcore_admin_portal_updateportletconfig", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -233,6 +235,7 @@ class PortalController extends AdminController implements EventedControllerInter
             foreach ($col as &$portlet) {
                 if ($portlet['id'] == $id) {
                     $portlet['config'] = $configuration;
+
                     break;
                 }
             }
@@ -243,7 +246,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/portlet-modified-documents", methods={"GET"})
+     * @Route("/portlet-modified-documents", name="pimcore_admin_portal_portletmodifieddocuments", methods={"GET"})
      *
      * @param Request $request
      *
@@ -255,22 +258,19 @@ class PortalController extends AdminController implements EventedControllerInter
             'limit' => 10,
             'order' => 'DESC',
             'orderKey' => 'modificationDate',
-            'condition' => "userModification = '".$this->getAdminUser()->getId()."'"
+            'condition' => "userModification = '".$this->getAdminUser()->getId()."'",
         ]);
 
         $response = [];
         $response['documents'] = [];
 
         foreach ($list as $doc) {
-            /**
-             * @var Document $doc
-             */
             if ($doc->isAllowed('view')) {
                 $response['documents'][] = [
                     'id' => $doc->getId(),
                     'type' => $doc->getType(),
                     'path' => $doc->getRealFullPath(),
-                    'date' => $doc->getModificationDate()
+                    'date' => $doc->getModificationDate(),
                 ];
             }
         }
@@ -279,7 +279,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/portlet-modified-assets", methods={"GET"})
+     * @Route("/portlet-modified-assets", name="pimcore_admin_portal_portletmodifiedassets", methods={"GET"})
      *
      * @param Request $request
      *
@@ -291,7 +291,7 @@ class PortalController extends AdminController implements EventedControllerInter
             'limit' => 10,
             'order' => 'DESC',
             'orderKey' => 'modificationDate',
-            'condition' => "userModification = '".$this->getAdminUser()->getId()."'"
+            'condition' => "userModification = '".$this->getAdminUser()->getId()."'",
         ]);
 
         $response = [];
@@ -306,7 +306,7 @@ class PortalController extends AdminController implements EventedControllerInter
                     'id' => $doc->getId(),
                     'type' => $doc->getType(),
                     'path' => $doc->getRealFullPath(),
-                    'date' => $doc->getModificationDate()
+                    'date' => $doc->getModificationDate(),
                 ];
             }
         }
@@ -315,7 +315,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/portlet-modified-objects", methods={"GET"})
+     * @Route("/portlet-modified-objects", name="pimcore_admin_portal_portletmodifiedobjects", methods={"GET"})
      *
      * @param Request $request
      *
@@ -327,22 +327,19 @@ class PortalController extends AdminController implements EventedControllerInter
             'limit' => 10,
             'order' => 'DESC',
             'orderKey' => 'o_modificationDate',
-            'condition' => "o_userModification = '".$this->getAdminUser()->getId()."'"
+            'condition' => "o_userModification = '".$this->getAdminUser()->getId()."'",
         ]);
 
         $response = [];
         $response['objects'] = [];
 
         foreach ($list as $object) {
-            /**
-             * @var DataObject $object
-             */
             if ($object->isAllowed('view')) {
                 $response['objects'][] = [
                     'id' => $object->getId(),
                     'type' => $object->getType(),
                     'path' => $object->getRealFullPath(),
-                    'date' => $object->getModificationDate()
+                    'date' => $object->getModificationDate(),
                 ];
             }
         }
@@ -351,7 +348,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/portlet-modification-statistics", methods={"GET"})
+     * @Route("/portlet-modification-statistics", name="pimcore_admin_portal_portletmodificationstatistics", methods={"GET"})
      *
      * @param Request $request
      *
@@ -383,7 +380,7 @@ class PortalController extends AdminController implements EventedControllerInter
                 'datetext' => $date->format('Y-m-d'),
                 'objects' => (int) $o,
                 'documents' => (int) $d,
-                'assets' => (int) $a
+                'assets' => (int) $a,
             ];
         }
 
@@ -393,7 +390,7 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @Route("/portlet-analytics-sites", methods={"GET"})
+     * @Route("/portlet-analytics-sites", name="pimcore_admin_portal_portletanalyticssites", methods={"GET"})
      *
      * @param TranslatorInterface $translator
      * @param SiteConfigProvider $siteConfigProvider
@@ -408,16 +405,15 @@ class PortalController extends AdminController implements EventedControllerInter
         $data = [
             [
                 'id' => 0,
-                'site' => $translator->trans('main_site', [], 'admin')
-            ]
+                'site' => $translator->trans('main_site', [], 'admin'),
+            ],
         ];
 
-        /** @var Site $site */
         foreach ($sites->load() as $site) {
             if ($siteConfigProvider->isSiteReportingConfigured($site)) {
                 $data[] = [
                     'id' => $site->getId(),
-                    'site' => $site->getMainDomain()
+                    'site' => $site->getMainDomain(),
                 ];
             }
         }
@@ -426,9 +422,9 @@ class PortalController extends AdminController implements EventedControllerInter
     }
 
     /**
-     * @param FilterControllerEvent $event
+     * @param ControllerEvent $event
      */
-    public function onKernelController(FilterControllerEvent $event)
+    public function onKernelControllerEvent(ControllerEvent $event)
     {
         $isMasterRequest = $event->isMasterRequest();
         if (!$isMasterRequest) {
@@ -436,13 +432,5 @@ class PortalController extends AdminController implements EventedControllerInter
         }
 
         $this->dashboardHelper = new \Pimcore\Helper\Dashboard($this->getAdminUser());
-    }
-
-    /**
-     * @param FilterResponseEvent $event
-     */
-    public function onKernelResponse(FilterResponseEvent $event)
-    {
-        // nothing to do
     }
 }

@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.classificationstore.relationSelectionWindow");
@@ -98,7 +98,7 @@ pimcore.object.classificationstore.relationSelectionWindow = Class.create({
         if (keyIds.length > 0) {
             this.parent.requestPending.call(this.parent);
             Ext.Ajax.request({
-                url: "/admin/classificationstore/relations",
+                url: Routing.generate('pimcore_admin_dataobject_classificationstore_relationsactionget'),
                 params: {
                     relationIds: Ext.util.JSON.encode(keyIds)
                 },
@@ -247,7 +247,7 @@ pimcore.object.classificationstore.relationSelectionWindow = Class.create({
 
         var proxy = {
             type: 'ajax',
-            url: "/admin/classificationstore/search-relations",
+            url: Routing.generate('pimcore_admin_dataobject_classificationstore_searchrelations'),
             reader: {
                 type: 'json',
                 rootProperty: 'data',

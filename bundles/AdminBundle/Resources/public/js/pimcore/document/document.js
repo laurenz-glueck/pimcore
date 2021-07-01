@@ -3,23 +3,21 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.document.document");
 pimcore.document.document = Class.create(pimcore.element.abstract, {
 
-    urlprefix: "/admin/",
-
     getData: function () {
         var options = this.options || {};
         Ext.Ajax.request({
-            url: this.urlprefix + this.getType() + "/get-data-by-id",
+            url: Routing.getBaseUrl() + "/admin/" + this.getType() + "/get-data-by-id",
             params: {id: this.id},
             ignoreErrors: options.ignoreNotFoundError,
             success: this.getDataComplete.bind(this),
@@ -79,57 +77,71 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
         tabPanel.setActiveItem(tabId);
     },
 
-    save: function (task, only, callback) {
+    save: function (task, only, callback, successCallback) {
 
-        if (this.tab.disabled || this.tab.isMasked()) {
+        if (this.tab.disabled || (this.tab.isMasked() && task != 'autoSave')) {
             return;
         }
 
-        this.tab.mask();
+
+        if(task != 'autoSave'){
+            this.tab.mask();
+        }
+
         var saveData = this.getSaveData(only);
 
         if (saveData) {
-            if(this.data.missingRequiredEditable !== null) {
+            if (this.data.missingRequiredEditable !== null) {
                 saveData.missingRequiredEditable = this.data.missingRequiredEditable;
-            }
-
-            // check for version notification
-            if (this.newerVersionNotification) {
-                if (task == "publish" || task == "unpublish") {
-                    this.newerVersionNotification.hide();
-                } else {
-                    this.newerVersionNotification.show();
-                }
-
             }
 
             try {
                 pimcore.plugin.broker.fireEvent("preSaveDocument", this, this.getType(), task, only);
             } catch (e) {
                 if (e instanceof pimcore.error.ValidationException) {
-                        this.tab.unmask();
-                        pimcore.helpers.showPrettyError('document', t("error"), t("saving_failed"), e.message);
-                        return false;
-                    }
+                    this.tab.unmask();
+                    pimcore.helpers.showPrettyError('document', t("error"), t("saving_failed"), e.message);
+                    return false;
+                }
 
-                    if (e instanceof pimcore.error.ActionCancelledException) {
-                        this.tab.unmask();
-                        pimcore.helpers.showNotification(t("Info"), 'Document not saved: ' + e.message, 'info');
-                        return false;
-                    }
+                if (e instanceof pimcore.error.ActionCancelledException) {
+                    this.tab.unmask();
+                    pimcore.helpers.showNotification(t("Info"), 'Document not saved: ' + e.message, 'info');
+                    return false;
+                }
             }
 
             Ext.Ajax.request({
-                url: this.urlprefix + this.getType() + '/save?task=' + task,
+                url: Routing.getBaseUrl() + "/admin/" + this.getType() + '/save?task=' + task,
                 method: "PUT",
                 params: saveData,
                 success: function (response) {
                     try {
                         var rdata = Ext.decode(response.responseText);
+                        if (typeof successCallback == 'function') {
+                            // the successCallback function retrieves response data information
+                            successCallback(rdata);
+                        }
                         if (rdata && rdata.success) {
-                            pimcore.helpers.showNotification(t("success"), t("saved_successfully"), "success");
-                            this.resetChanges();
+                            // check for version notification
+                            if (this.draftVersionNotification) {
+                                if (task == "publish" || task == "unpublish") {
+                                    this.draftVersionNotification.hide();
+                                } else if (task === 'version' || task === 'autoSave') {
+                                    this.draftVersionNotification.show();
+                                }
+                            }
+
+                            if(task !== "autoSave") {
+                                pimcore.helpers.showNotification(t("success"), t("saved_successfully"), "success");
+                            }
+
+                            this.resetChanges(task);
                             Ext.apply(this.data, rdata.data);
+
+                            if(rdata['draft']) {
+                                this.data['draft'] = rdata['draft'];
+                            }
 
                             if (typeof this["createScreenshot"] == "function") {
                                 this.createScreenshot();
@@ -141,9 +153,8 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                         pimcore.helpers.showNotification(t("error"), t("saving_failed"), "error");
                     }
 
-
                     // reload versions
-                    if (this.versions) {
+                    if (task !== 'autoSave' && this.versions) {
                         if (typeof this.versions.reload == "function") {
                             this.versions.reload();
                         }
@@ -164,7 +175,6 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
         }
     },
 
-
     isAllowed: function (key) {
         return this.data.userPermissions[key];
     },
@@ -177,63 +187,69 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
         pimcore.elementservice.deleteElement(options);
     },
 
+    close: function() {
+        var tabPanel = Ext.getCmp("pimcore_panel_tabs");
+        tabPanel.remove(this.tab);
+    },
+
     saveClose: function (only) {
-        this.save(null, only, function () {
-            var tabPanel = Ext.getCmp("pimcore_panel_tabs");
-            tabPanel.remove(this.tab);
+        this.save('version', only, function () {
+            this.close();
         }.bind(this));
     },
 
     publishClose: function () {
         this.publish(null, function () {
-            var tabPanel = Ext.getCmp("pimcore_panel_tabs");
-            tabPanel.remove(this.tab);
+            this.close();
         }.bind(this));
     },
 
     publish: function (only, callback) {
-        this.data.published = true;
+        this.save("publish", only, callback, function (rdata) {
+            if (rdata && rdata.success) {
+                this.data.published = true;
 
-        // toogle buttons
-        this.toolbarButtons.unpublish.show();
+                // toggle buttons
+                this.toolbarButtons.unpublish.show();
 
-        if (this.toolbarButtons.save) {
-            this.toolbarButtons.save.hide();
-        }
+                if (this.toolbarButtons.save) {
+                    this.toolbarButtons.save.hide();
+                }
 
-        pimcore.elementservice.setElementPublishedState({
-            elementType: "document",
-            id: this.id,
-            published: true
-        });
-
-        this.save("publish", only, callback);
+                pimcore.elementservice.setElementPublishedState({
+                    elementType: "document",
+                    id: this.id,
+                    published: true
+                });
+            }
+        }.bind(this));
     },
 
     unpublish: function (only, callback) {
-        this.data.published = false;
+        this.save("unpublish", only, callback, function (rdata) {
+            if (rdata && rdata.success) {
+                this.data.published = false;
 
-        // toogle buttons
-        this.toolbarButtons.unpublish.hide();
+                // toggle buttons
+                this.toolbarButtons.unpublish.hide();
 
-        if (this.toolbarButtons.save) {
-            this.toolbarButtons.save.show();
-        }
+                if (this.toolbarButtons.save) {
+                    this.toolbarButtons.save.show();
+                }
 
-        pimcore.elementservice.setElementPublishedState({
-            elementType: "document",
-            id: this.id,
-            published: false
-        });
-
-        this.save("unpublish", only, callback);
+                pimcore.elementservice.setElementPublishedState({
+                    elementType: "document",
+                    id: this.id,
+                    published: false
+                });
+            }
+        }.bind(this));
     },
 
     unpublishClose: function () {
         this.unpublish(null, function () {
-            var tabPanel = Ext.getCmp("pimcore_panel_tabs");
-            tabPanel.remove(this.tab);
-        });
+            this.close();
+        }.bind(this));
     },
 
     reload: function () {
@@ -263,7 +279,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
         var checkLanguage = function (el) {
 
             Ext.Ajax.request({
-                url: "/admin/document/translation-check-language",
+                url: Routing.generate('pimcore_admin_document_document_translationchecklanguage'),
                 params: {
                     path: el.getValue()
                 },
@@ -355,7 +371,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                     }
 
                     Ext.Ajax.request({
-                        url: "/admin/document/translation-add",
+                        url: Routing.generate('pimcore_admin_document_document_translationadd'),
                         method: 'POST',
                         params: {
                             sourceId: this.id,
@@ -408,7 +424,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                     select: function (el) {
                         pageForm.getComponent("parent").disable();
                         Ext.Ajax.request({
-                            url: "/admin/document/translation-determine-parent",
+                            url: Routing.generate('pimcore_admin_document_document_translationdetermineparent'),
                             params: {
                                 language: el.getValue(),
                                 id: this.id
@@ -507,7 +523,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                     win.disable();
 
                     Ext.Ajax.request({
-                        url: "/admin/element/get-subtype",
+                        url: Routing.generate('pimcore_admin_element_getsubtype'),
                         params: {
                             id: pageForm.getComponent("parent").getValue(),
                             type: "document"
@@ -524,7 +540,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                                     }
 
                                     Ext.Ajax.request({
-                                        url: "/admin/document/add",
+                                        url: Routing.generate('pimcore_admin_document_document_add'),
                                         method: 'POST',
                                         params: params,
                                         success: function (response) {
@@ -586,7 +602,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
                     text: pimcore.available_languages[language] + " [" + language + "]",
                     handler: function () {
                         Ext.Ajax.request({
-                            url: "/admin/document/translation-remove",
+                            url: Routing.generate('pimcore_admin_document_document_translationremove'),
                             method: 'DELETE',
                             params: {
                                 sourceId: me.id,
@@ -644,7 +660,7 @@ pimcore.document.document = Class.create(pimcore.element.abstract, {
 
     resetPath: function () {
         Ext.Ajax.request({
-            url: "/admin/document/get-data-by-id",
+            url: Routing.generate('pimcore_admin_document_document_getdatabyid'),
             params: {id: this.id},
             success: function (response) {
                 var rdata = Ext.decode(response.responseText);

@@ -3,29 +3,33 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.translation.website");
 pimcore.settings.translation.website = Class.create(pimcore.settings.translations,{
 
     translationType: 'website',
-    dataUrl: '/admin/translation/translations',
-    exportUrl: '/admin/translation/export',
-    uploadImportUrl:'/admin/translation/upload-import',
-    importUrl:'/admin/translation/import',
-    mergeUrl:'/admin/translation/import?merge=1',
-    cleanupUrl: "/admin/translation/cleanup?type=website",
 
+    initialize: function ($super, filter) {
+        $super(filter);
+
+        this.dataUrl = Routing.generate('pimcore_admin_translation_translations');
+        this.exportUrl = Routing.generate('pimcore_admin_translation_export');
+        this.uploadImportUrl = Routing.generate('pimcore_admin_translation_uploadimportfile');
+        this.importUrl = Routing.generate('pimcore_admin_translation_import');
+        this.mergeUrl = Routing.generate('pimcore_admin_translation_import', {merge: 1});
+        this.cleanupUrl = Routing.generate('pimcore_admin_translation_cleanup', {type: 'website'});
+    },
 
     activate: function (filter) {
         if(filter){
-            this.store.getProxy().setExtraParam("filter", filter);
+            this.store.getProxy().setExtraParam("searchString", filter);
             this.store.load();
             this.filterField.setValue(filter);
         }
@@ -39,7 +43,7 @@ pimcore.settings.translation.website = Class.create(pimcore.settings.translation
 
     getAvailableLanguages: function () {
         Ext.Ajax.request({
-            url: "/admin/translation/get-website-translation-languages",
+            url: Routing.generate('pimcore_admin_translation_getwebsitetranslationlanguages'),
             success: function (response) {
                 try {
                     var container = Ext.decode(response.responseText);
@@ -69,6 +73,9 @@ pimcore.settings.translation.website = Class.create(pimcore.settings.translation
                 border: false,
                 layout: "fit",
                 closable:true,
+                defaults: {
+                    renderer: Ext.util.Format.htmlEncode
+                },
                 items: [
                     this.getRowEditor()
                 ]

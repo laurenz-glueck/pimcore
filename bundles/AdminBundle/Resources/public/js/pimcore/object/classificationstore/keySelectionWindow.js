@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.classificationstore.keySelectionWindow");
@@ -126,7 +126,7 @@ pimcore.object.classificationstore.keySelectionWindow = Class.create({
         if (collectionIds.length > 0) {
             this.config.parent.requestPending.call(this.config.parent);
             Ext.Ajax.request({
-                url: "/admin/classificationstore/add-collections",
+                url: Routing.generate('pimcore_admin_dataobject_classificationstore_addcollections'),
                 method: 'POST',
                 params: {
                     collectionIds: Ext.util.JSON.encode(collectionIds),
@@ -169,7 +169,7 @@ pimcore.object.classificationstore.keySelectionWindow = Class.create({
         if (groupIds.length > 0) {
             this.config.parent.requestPending.call(this.config.parent);
             Ext.Ajax.request({
-                url: "/admin/classificationstore/add-groups",
+                url: Routing.generate('pimcore_admin_dataobject_classificationstore_addgroups'),
                 method: 'POST',
                 params: {
                     groupIds: Ext.util.JSON.encode(groupIds),
@@ -198,7 +198,7 @@ pimcore.object.classificationstore.keySelectionWindow = Class.create({
         if (keyIds.length > 0) {
             this.config.parent.requestPending.call(this.config.parent);
             Ext.Ajax.request({
-                url: "/admin/classificationstore/properties",
+                url: Routing.generate('pimcore_admin_dataobject_classificationstore_propertiesget'),
                 params: {
                     keyIds: Ext.util.JSON.encode(keyIds)
                 },
@@ -369,28 +369,29 @@ pimcore.object.classificationstore.keySelectionWindow = Class.create({
 
     getGridPanel: function () {
         var postFix;
+        var route;
         var nameWidth = 200;
         var descWidth = 590;
 
         if (this.config.isCollectionSearch) {
-            postFix = "collections";
+            route = 'pimcore_admin_dataobject_classificationstore_collectionsactionget';
             this.groupFields = ['id', 'name', 'description'];
         } else if (this.config.isGroupSearch) {
-            postFix = "groups";
+            route = 'pimcore_admin_dataobject_classificationstore_groupsactionget';
             this.groupFields = ['id', 'name', 'description'];
         } else if (this.config.isGroupsBySearch) {
             this.groupFields = ['id', 'groupName', 'keyName', 'keyDescription', 'keyId', 'groupId'];
         } else {
-            postFix = "properties";
+            route = 'pimcore_admin_dataobject_classificationstore_propertiesget';
             nameWidth = 150;
             descWidth = 490;
             this.groupFields = ['id', 'groupName', 'name', 'description'];
         }
 
         if (this.config.isGroupByKeySearch) {
-            var url = "/admin/classificationstore/search-relations";
+            var url = Routing.generate('pimcore_admin_dataobject_classificationstore_searchrelations');
         } else {
-            var url = "/admin/classificationstore/" + postFix;
+            var url = Routing.generate(route);
         }
 
         var readerFields = [];

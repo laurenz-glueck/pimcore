@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.settings.translation.word");
@@ -239,7 +239,7 @@ pimcore.settings.translation.word = Class.create({
         }
 
         Ext.Ajax.request({
-            url: "/admin/translation/content-export-jobs",
+            url: Routing.generate('pimcore_admin_translation_contentexportjobs'),
             method: 'POST',
             params: {
                 source: this.exportSourceLanguageSelector.getValue(),
@@ -276,7 +276,7 @@ pimcore.settings.translation.word = Class.create({
                         this.exportProgressbar = null;
                         this.exportProgressWin = null;
 
-                        pimcore.helpers.download('/admin/translation/word-export-download?id='+ id);
+                        pimcore.helpers.download(Routing.generate('pimcore_admin_translation_wordexportdownload', {id: id}));
                     }.bind(this, res.id),
                     update: function (currentStep, steps, percent) {
                         if(this.exportProgressbar) {

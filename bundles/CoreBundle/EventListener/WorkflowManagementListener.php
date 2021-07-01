@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\CoreBundle\EventListener;
@@ -24,7 +25,7 @@ use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\ClassDefinition;
 use Pimcore\Model\DataObject\Concrete as ConcreteObject;
 use Pimcore\Model\Document;
-use Pimcore\Model\Element\AbstractElement;
+use Pimcore\Model\Element\ElementInterface;
 use Pimcore\Model\Element\Service;
 use Pimcore\Model\Element\WorkflowState;
 use Pimcore\Workflow\ActionsButtonService;
@@ -35,6 +36,9 @@ use Symfony\Component\EventDispatcher\GenericEvent;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Workflow\Registry;
 
+/**
+ * @internal
+ */
 class WorkflowManagementListener implements EventSubscriberInterface
 {
     /**
@@ -77,11 +81,14 @@ class WorkflowManagementListener implements EventSubscriberInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public static function getSubscribedEvents()
     {
         return [
+            DataObjectEvents::PRE_ADD => 'onElementPreAdd',
+            DocumentEvents::PRE_ADD => 'onElementPreAdd',
+            AssetEvents::PRE_ADD => 'onElementPreAdd',
 
             DataObjectEvents::POST_DELETE => 'onElementPostDelete',
             DocumentEvents::POST_DELETE => 'onElementPostDelete',
@@ -91,6 +98,29 @@ class WorkflowManagementListener implements EventSubscriberInterface
             AdminEvents::ASSET_GET_PRE_SEND_DATA => 'onAdminElementGetPreSendData',
             AdminEvents::DOCUMENT_GET_PRE_SEND_DATA => 'onAdminElementGetPreSendData',
         ];
+    }
+
+    /**
+     * Set initial place if defined on element create.
+     */
+    public function onElementPreAdd(ElementEventInterface $e): void
+    {
+        /** @var Asset|Document|ConcreteObject $element */
+        $element = $e->getElement();
+
+        foreach ($this->workflowManager->getAllWorkflows() as $workflowName) {
+            $workflow = $this->workflowManager->getWorkflowIfExists($element, $workflowName);
+            if (!$workflow) {
+                continue;
+            }
+
+            $hasInitialPlaceConfig = count($this->workflowManager->getInitialPlacesForWorkflow($workflow)) > 0;
+
+            // calling getMarking will ensure the initial place is set
+            if ($hasInitialPlaceConfig) {
+                $workflow->getMarking($element);
+            }
+        }
     }
 
     /**
@@ -142,6 +172,9 @@ class WorkflowManagementListener implements EventSubscriberInterface
             $data['workflowManagement']['hasWorkflowManagement'] = true;
             $data['workflowManagement']['workflows'] = $data['workflowManagement']['workflows'] ?? [];
 
+            // Fix: places stored as empty string ("") considered uninitialized prior to Symfony 4.4.8
+            $this->workflowManager->ensureInitialPlace($workflowName, $element);
+
             $allowedTransitions = $this->actionsButtonService->getAllowedTransitions($workflow, $element);
             $globalActions = $this->actionsButtonService->getGlobalActions($workflow, $element);
 
@@ -149,12 +182,12 @@ class WorkflowManagementListener implements EventSubscriberInterface
                 'name' => $workflow->getName(),
                 'label' => $workflowConfig->getLabel(),
                 'allowedTransitions' => $allowedTransitions,
-                'globalActions' => $globalActions
+                'globalActions' => $globalActions,
             ];
 
             $marking = $workflow->getMarking($element);
 
-            if (!sizeof($marking->getPlaces())) {
+            if (!count($marking->getPlaces())) {
                 continue;
             }
 
@@ -176,7 +209,7 @@ class WorkflowManagementListener implements EventSubscriberInterface
                             if (!empty($validLayouts)) {
 
                                 // check user permissions again
-                                if ($validLayouts && $validLayouts[$workflowLayoutId]) {
+                                if ($validLayouts[$workflowLayoutId]) {
                                     $customLayout = ClassDefinition\CustomLayout::getById($workflowLayoutId);
                                     $customLayoutDefinition = $customLayout->getLayoutDefinitions();
                                     DataObject\Service::enrichLayoutDefinition($customLayoutDefinition, $e->getArgument('object'));
@@ -219,7 +252,7 @@ class WorkflowManagementListener implements EventSubscriberInterface
     /**
      * @param GenericEvent $e
      *
-     * @return AbstractElement
+     * @return ElementInterface
      *
      * @throws \Exception
      */

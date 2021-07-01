@@ -1,24 +1,23 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Routing\Staticroute;
 
 use Pimcore\Config;
-use Pimcore\Controller\Config\ConfigNormalizer;
 use Pimcore\Model\Site;
 use Pimcore\Model\Staticroute;
-use Pimcore\Tool;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Symfony\Cmf\Component\Routing\VersatileGeneratorInterface;
@@ -32,9 +31,11 @@ use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\RouterInterface;
 
 /**
+ * @internal
+ *
  * A custom router implementation handling pimcore static routes.
  */
-class Router implements RouterInterface, RequestMatcherInterface, VersatileGeneratorInterface, LoggerAwareInterface
+final class Router implements RouterInterface, RequestMatcherInterface, VersatileGeneratorInterface, LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
@@ -42,11 +43,6 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
      * @var RequestContext
      */
     protected $context;
-
-    /**
-     * @var ConfigNormalizer
-     */
-    protected $configNormalizer;
 
     /**
      * @var Staticroute[]
@@ -70,15 +66,18 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
      */
     protected $config;
 
-    public function __construct(RequestContext $context, ConfigNormalizer $configNormalizer, Config $config)
+    /**
+     * @param RequestContext $context
+     * @param Config $config
+     */
+    public function __construct(RequestContext $context, Config $config)
     {
         $this->context = $context;
-        $this->configNormalizer = $configNormalizer;
         $this->config = $config;
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function setContext(RequestContext $context)
     {
@@ -86,25 +85,31 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getContext()
     {
         return $this->context;
     }
 
+    /**
+     * @return array
+     */
     public function getLocaleParams(): array
     {
         return $this->localeParams;
     }
 
+    /**
+     * @param array $localeParams
+     */
     public function setLocaleParams(array $localeParams)
     {
         $this->localeParams = $localeParams;
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function supports($name)
     {
@@ -112,7 +117,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getRouteCollection()
     {
@@ -120,7 +125,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getRouteDebugMessage($name, array $parameters = [])
     {
@@ -128,7 +133,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function generate($name, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
     {
@@ -182,13 +187,12 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
         }
 
         if ($name && $route = Staticroute::getByName($name, $siteId)) {
-            $reset = isset($parameters['reset']) ? (bool)$parameters['reset'] : false;
             $encode = isset($parameters['encode']) ? (bool)$parameters['encode'] : true;
             unset($parameters['encode']);
             // assemble the route / url in Staticroute::assemble()
-            $url = $route->assemble($parameters, $reset, $encode);
+            $url = $route->assemble($parameters, $encode);
             $port = '';
-            $scheme = $this->context->getScheme() ;
+            $scheme = $this->context->getScheme();
 
             if ('http' === $scheme && 80 !== $this->context->getHttpPort()) {
                 $port = ':'.$this->context->getHttpPort();
@@ -212,19 +216,20 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
             return $url;
         }
 
-        throw new RouteNotFoundException(sprintf('Could not generate URL for route %s as the static route wasn\'t found', $name));
+        throw new RouteNotFoundException(sprintf('Could not generate URL for route %s as the static route wasn\'t found',
+            $name));
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function matchRequest(Request $request)
     {
-        return $this->doMatch($request->getPathInfo());
+        return $this->doMatch($request->getPathInfo(), $request);
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function match($pathinfo)
     {
@@ -233,17 +238,25 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
 
     /**
      * @param string $pathinfo
+     * @param Request|null $request
      *
      * @return array
      */
-    protected function doMatch($pathinfo)
+    protected function doMatch($pathinfo, Request $request = null)
     {
         $pathinfo = urldecode($pathinfo);
 
         $params = $this->context->getParameters();
-        $params = array_merge(Tool::getRoutingDefaults(), $params);
 
         foreach ($this->getStaticRoutes() as $route) {
+            if (null !== $request && null !== $route->getMethods() && 0 !== count($route->getMethods())) {
+                $method = $request->getMethod();
+
+                if (!in_array($method, $route->getMethods(), true)) {
+                    continue;
+                }
+            }
+
             if ($routeParams = $route->match($pathinfo, $params)) {
                 Staticroute::setCurrentRoute($route);
 
@@ -273,7 +286,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
         $keys = [
             'module',
             'controller',
-            'action'
+            'action',
         ];
 
         $controllerParams = [];
@@ -287,19 +300,14 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
             $controllerParams[$key] = $value;
         }
 
-        $controller = $this->configNormalizer->formatControllerReference(
-            $controllerParams['module'],
-            $controllerParams['controller'],
-            $controllerParams['action']
-        );
-
-        $routeParams['_controller'] = $controller;
+        $routeParams['_controller'] = $controllerParams['controller'];
 
         // map common language properties (e.g. language) to _locale if not set
         if (!isset($routeParams['_locale'])) {
             foreach ($this->localeParams as $localeParam) {
                 if (isset($routeParams[$localeParam])) {
                     $routeParams['_locale'] = $routeParams[$localeParam];
+
                     break;
                 }
             }

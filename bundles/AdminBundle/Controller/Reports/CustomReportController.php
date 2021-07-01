@@ -1,20 +1,22 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Reports;
 
 use Pimcore\Model\Tool\CustomReport;
+use Symfony\Component\Filesystem\Exception\FileNotFoundException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,11 +25,13 @@ use Symfony\Component\Routing\Annotation\Route;
 
 /**
  * @Route("/custom-report")
+ *
+ * @internal
  */
 class CustomReportController extends ReportsControllerBase
 {
     /**
-     * @Route("/tree", methods={"GET", "POST"})
+     * @Route("/tree", name="pimcore_admin_reports_customreport_tree", methods={"GET", "POST"})
      *
      * @param Request $request
      *
@@ -42,7 +46,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/portlet-report-list", methods={"GET", "POST"})
+     * @Route("/portlet-report-list", name="pimcore_admin_reports_customreport_portletreportlist", methods={"GET", "POST"})
      *
      * @param Request $request
      *
@@ -57,7 +61,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/add", methods={"POST"})
+     * @Route("/add", name="pimcore_admin_reports_customreport_add", methods={"POST"})
      *
      * @param Request $request
      *
@@ -83,7 +87,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/delete", methods={"DELETE"})
+     * @Route("/delete", name="pimcore_admin_reports_customreport_delete", methods={"DELETE"})
      *
      * @param Request $request
      *
@@ -100,7 +104,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/clone", methods={"POST"})
+     * @Route("/clone", name="pimcore_admin_reports_customreport_clone", methods={"POST"})
      *
      * @param Request $request
      *
@@ -136,7 +140,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/get", methods={"GET"})
+     * @Route("/get", name="pimcore_admin_reports_customreport_get", methods={"GET"})
      *
      * @param Request $request
      *
@@ -152,7 +156,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/update", methods={"PUT"})
+     * @Route("/update", name="pimcore_admin_reports_customreport_update", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -182,7 +186,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/column-config", methods={"POST"})
+     * @Route("/column-config", name="pimcore_admin_reports_customreport_columnconfig", methods={"POST"})
      *
      * @param Request $request
      *
@@ -199,10 +203,9 @@ class CustomReportController extends ReportsControllerBase
         }
 
         $configuration = json_decode($request->get('configuration'));
-        $configuration = $configuration[0];
+        $configuration = $configuration[0] ?? null;
 
         $success = false;
-        $columns = null;
         $errorMessage = null;
 
         $result = [];
@@ -233,12 +236,12 @@ class CustomReportController extends ReportsControllerBase
         return $this->adminJson([
             'success' => $success,
             'columns' => $result,
-            'errorMessage' => $errorMessage
+            'errorMessage' => $errorMessage,
         ]);
     }
 
     /**
-     * @Route("/get-report-config", methods={"GET"})
+     * @Route("/get-report-config", name="pimcore_admin_reports_customreport_getreportconfig", methods={"GET"})
      *
      * @param Request $request
      *
@@ -253,7 +256,6 @@ class CustomReportController extends ReportsControllerBase
         $list = new CustomReport\Config\Listing();
         $items = $list->getDao()->loadForGivenUser($this->getAdminUser());
 
-        /** @var CustomReport\Config $report */
         foreach ($items as $report) {
             $reports[] = [
                 'name' => $report->getName(),
@@ -262,18 +264,18 @@ class CustomReportController extends ReportsControllerBase
                 'group' => $report->getGroup(),
                 'groupIconClass' => $report->getGroupIconClass(),
                 'menuShortcut' => $report->getMenuShortcut(),
-                'reportClass' => $report->getReportClass()
+                'reportClass' => $report->getReportClass(),
             ];
         }
 
         return $this->adminJson([
             'success' => true,
-            'reports' => $reports
+            'reports' => $reports,
         ]);
     }
 
     /**
-     * @Route("/data", methods={"GET", "POST"})
+     * @Route("/data", name="pimcore_admin_reports_customreport_data", methods={"GET", "POST"})
      *
      * @param Request $request
      *
@@ -307,12 +309,12 @@ class CustomReportController extends ReportsControllerBase
         return $this->adminJson([
             'success' => true,
             'data' => $result['data'],
-            'total' => $result['total']
+            'total' => $result['total'],
         ]);
     }
 
     /**
-     * @Route("/drill-down-options", methods={"GET", "POST"})
+     * @Route("/drill-down-options", name="pimcore_admin_reports_customreport_drilldownoptions", methods={"GET", "POST"})
      *
      * @param Request $request
      *
@@ -339,7 +341,7 @@ class CustomReportController extends ReportsControllerBase
     }
 
     /**
-     * @Route("/chart", methods={"GET", "POST"})
+     * @Route("/chart", name="pimcore_admin_reports_customreport_chart", methods={"GET", "POST"})
      *
      * @param Request $request
      *
@@ -364,18 +366,18 @@ class CustomReportController extends ReportsControllerBase
         return $this->adminJson([
             'success' => true,
             'data' => $result['data'],
-            'total' => $result['total']
+            'total' => $result['total'],
         ]);
     }
 
     /**
-     * @Route("/download-csv", methods={"GET"})
+     * @Route("/create-csv", name="pimcore_admin_reports_customreport_createcsv", methods={"GET"})
      *
      * @param Request $request
      *
-     * @return BinaryFileResponse
+     * @return JsonResponse
      */
-    public function downloadCsvAction(Request $request)
+    public function createCsvAction(Request $request)
     {
         $this->checkPermission('reports');
 
@@ -383,7 +385,7 @@ class CustomReportController extends ReportsControllerBase
 
         $sort = $request->get('sort');
         $dir = $request->get('dir');
-        $filters = ($request->get('filter') ? json_decode($request->get('filter'), true) : null);
+        $filters = $request->get('filter') ? json_decode(urldecode($request->get('filter')), true) : null;
         $drillDownFilters = $request->get('drillDownFilters', null);
         $includeHeaders = $request->get('headers', false);
 
@@ -391,30 +393,33 @@ class CustomReportController extends ReportsControllerBase
 
         $columns = $config->getColumnConfiguration();
         $fields = [];
-        $headers = [];
         foreach ($columns as $column) {
             if ($column['export']) {
                 $fields[] = $column['name'];
-                $headers[] = !empty($column['label']) ? $column['label'] : $column['name'];
             }
         }
 
         $configuration = $config->getDataSourceConfig();
-        //if many rows returned as an array than use the first row. Fixes: #782
-        $configuration = is_array($configuration)
-            ? $configuration[0]
-            : $configuration;
 
         $adapter = CustomReport\Config::getAdapter($configuration, $config);
-        $result = $adapter->getData($filters, $sort, $dir, null, null, $fields, $drillDownFilters);
 
-        $exportFile = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/report-export-' . uniqid() . '.csv';
-        @unlink($exportFile);
+        $offset = $request->get('offset', 0);
+        $limit = 5000;
+        $tempData = [];
+        $result = $adapter->getData($filters, $sort, $dir, $offset * $limit, $limit, $fields, $drillDownFilters);
+        ++$offset;
 
-        $fp = fopen($exportFile, 'w');
+        if (!($exportFile = $request->get('exportFile'))) {
+            $exportFile = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/report-export-' . uniqid() . '.csv';
+            @unlink($exportFile);
+        } else {
+            $exportFile = PIMCORE_SYSTEM_TEMP_DIRECTORY.'/'.$exportFile;
+        }
+
+        $fp = fopen($exportFile, 'a');
 
         if ($includeHeaders) {
-            fputcsv($fp, $headers, ';');
+            fputcsv($fp, $fields, ';');
         }
 
         foreach ($result['data'] as $row) {
@@ -423,11 +428,37 @@ class CustomReportController extends ReportsControllerBase
 
         fclose($fp);
 
-        $response = new BinaryFileResponse($exportFile);
-        $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
-        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, 'export.csv');
-        $response->deleteFileAfterSend(true);
+        $progress = $result['total'] ? ($offset * $limit) / $result['total'] : 1;
+        $progress = $progress > 1 ? 1 : $progress;
 
-        return $response;
+        return new JsonResponse([
+            'exportFile' => basename($exportFile),
+            'offset' => $offset,
+            'progress' => $progress,
+            'finished' => empty($result['data']) || count($result['data']) < $limit,
+        ]);
+    }
+
+    /**
+     * @Route("/download-csv", name="pimcore_admin_reports_customreport_downloadcsv", methods={"GET"})
+     *
+     * @param Request $request
+     *
+     * @return BinaryFileResponse
+     */
+    public function downloadCsvAction(Request $request)
+    {
+        $this->checkPermission('reports');
+        if ($exportFile = $request->get('exportFile')) {
+            $exportFile = PIMCORE_SYSTEM_TEMP_DIRECTORY . '/' . basename($exportFile);
+            $response = new BinaryFileResponse($exportFile);
+            $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
+            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, 'export.csv');
+            $response->deleteFileAfterSend(true);
+
+            return $response;
+        }
+
+        throw new FileNotFoundException("File \"$exportFile\" not found!");
     }
 }

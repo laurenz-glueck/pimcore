@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 /* global google */
@@ -303,7 +303,7 @@ pimcore.settings.targeting.rules.item = Class.create({
         };
 
         Ext.Ajax.request({
-            url: "/admin/targeting/rule/save",
+            url: Routing.generate('pimcore_admin_targeting_rulesave'),
             method: 'PUT',
             params: {
                 id: this.data.id,

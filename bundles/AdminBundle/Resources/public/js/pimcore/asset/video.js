@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.asset.video");
@@ -35,7 +35,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
         }
 
         this.tagAssignment = new pimcore.element.tag.assignment(this, "asset");
-        this.metadata = new pimcore.asset.metadata.grid(this);
+        this.metadata = new pimcore.asset.metadata.editor(this);
         this.workflows = new pimcore.element.workflows(this, "asset");
         this.embeddedMetaData = new pimcore.asset.embedded_meta_data(this);
 
@@ -125,7 +125,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
                 detailsData[t("height")] = this.data.customSettings.videoHeight;
             }
             if(this.data.customSettings['duration']) {
-                detailsData[t("duration")] = this.data.customSettings.duration;
+                detailsData[t("duration")] = pimcore.helpers.formatTimeDuration(this.data.customSettings.duration);
             }
 
             var dimensionPanel = new Ext.create('Ext.grid.property.Grid', {
@@ -141,6 +141,13 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
             });
             dimensionPanel.plugins[0].disable();
             dimensionPanel.getStore().sort("name", "DESC");
+
+            var url = Routing.generate('pimcore_admin_asset_getvideothumbnail', {
+                id: this.id,
+                width: 265,
+                aspectratio: true,
+                '_dc': date.getTime()
+            });
 
             this.previewImagePanel = new Ext.Panel({
                 width: 300,
@@ -185,8 +192,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
                         style: "margin: 10px 0 10px 0;",
                         height: 200,
                         id: "pimcore_asset_video_imagepreview_" + this.id,
-                        html: '<img class="pimcore_video_preview_image" align="center" src="/admin/asset/get-video-thumbnail?id='
-                            + this.id + '&width=265&aspectratio=true&_dc=' + date.getTime() + '" />'
+                        html: '<img class="pimcore_video_preview_image" align="center" src="'+url+'" />'
                     }, {
                         xtype: "button",
                         text: t("use_current_player_position_as_preview"),
@@ -199,9 +205,17 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
                                 var time = window[this.previewFrameId].document.getElementById("video").currentTime;
                                 var date = new Date();
                                 var cmp = Ext.getCmp("pimcore_asset_video_imagepreview_" + this.id);
-                                cmp.update('<img class="pimcore_video_preview_image" align="center" src="/admin/asset/get-video-thumbnail?id='
-                                    + this.id + '&width=265&aspectratio=true&time=' + time + '&settime=true&_dc='
-                                    + date.getTime() + '" />');
+
+                                var url = Routing.generate('pimcore_admin_asset_getvideothumbnail', {
+                                    id: this.id,
+                                    width: 265,
+                                    aspectratio: true,
+                                    time: time,
+                                    settime: true,
+                                    '_dc': date.getTime()
+                                });
+
+                                cmp.update('<img class="pimcore_video_preview_image" align="center" src="'+url+'" />');
 
                             } catch (e) {
                                 console.log(e);
@@ -237,13 +251,17 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
                                             data = data.records[0].data;
                                             if (data.elementType == "asset") {
                                                 el.setValue(data.path);
-
                                                 var date = new Date();
+                                                var url = Routing.generate('pimcore_admin_asset_getvideothumbnail', {
+                                                    id: this.id,
+                                                    image: data.id,
+                                                    width: 265,
+                                                    aspectratio: true,
+                                                    setimage: true,
+                                                    '_dc': date.getTime()
+                                                });
                                                 var cmp = Ext.getCmp("pimcore_asset_video_imagepreview_" + this.id);
-                                                cmp.update('<img align="center" src="/admin/asset/get-video-thumbnail?id='
-                                                    + this.id + '&width=265&aspectratio=true&image='
-                                                    + data.id + '&setimage=true&_dc='
-                                                    + date.getTime() + '" />');
+                                                cmp.update('<img align="center" src="'+url+'" />');
                                                 return true;
                                             }
                                         }
@@ -292,7 +310,7 @@ pimcore.asset.video = Class.create(pimcore.asset.asset, {
     },
 
     initPreviewVideo: function () {
-        var frameUrl = '/admin/asset/get-preview-video?id=' + this.id;
+        var frameUrl = Routing.generate('pimcore_admin_asset_getpreviewvideo', {id: this.id});
         var html = '<iframe src="' + frameUrl + '" frameborder="0" id="' + this.previewFrameId + '" name="' + this.previewFrameId + '" style="width:100%;"></iframe>';
         this.previewPanel.update(html);
 

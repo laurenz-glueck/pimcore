@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 /*global localStorage */
@@ -195,12 +195,12 @@ pimcore.helpers.updateTreeElementStyle = function (type, id, treeData) {
         if (pimcore.globalmanager.exists(key)) {
             var editMask = pimcore.globalmanager.get(key);
             if (editMask.tab) {
-                if (typeof treeData.icon !== "undefined") {
-                    editMask.tab.setIcon(treeData.icon);
-                }
-
                 if (typeof treeData.iconCls !== "undefined") {
                     editMask.tab.setIconCls(treeData.iconCls);
+                }
+
+                if (typeof treeData.icon !== "undefined") {
+                    editMask.tab.setIcon(treeData.icon);
                 }
             }
         }
@@ -219,6 +219,10 @@ pimcore.helpers.updateTreeElementStyle = function (type, id, treeData) {
             if (record) {
                 if (typeof treeData.icon !== "undefined") {
                     record.set("icon", treeData.icon);
+                }
+
+                if (typeof treeData.cls !== "undefined") {
+                    record.set("cls", treeData.cls);
                 }
 
                 if (typeof treeData.iconCls !== "undefined") {
@@ -301,7 +305,7 @@ pimcore.helpers.recordElement = function (id, type, name) {
 };
 
 pimcore.helpers.openElement = function (idOrPath, type, subtype) {
-    if (typeof subtype != "undefined") {
+    if (typeof subtype != "undefined" && subtype !== null) {
         if (type == "document") {
             pimcore.helpers.openDocument(idOrPath, subtype);
         }
@@ -313,7 +317,7 @@ pimcore.helpers.openElement = function (idOrPath, type, subtype) {
         }
     } else {
         Ext.Ajax.request({
-            url: "/admin/element/get-subtype",
+            url: Routing.generate('pimcore_admin_element_getsubtype'),
             params: {
                 id: idOrPath,
                 type: type
@@ -463,15 +467,15 @@ pimcore.helpers.isValidFilename = function (value) {
 pimcore.helpers.getValidFilenameCache = {};
 
 pimcore.helpers.getValidFilename = function (value, type) {
-    
+
     value = value.trim();
-    
+
     if (pimcore.helpers.getValidFilenameCache[value + type]) {
         return pimcore.helpers.getValidFilenameCache[value + type];
     }
 
     var response = Ext.Ajax.request({
-        url: "/admin/misc/get-valid-filename",
+        url: Routing.generate('pimcore_admin_misc_getvalidfilename'),
         async: false,
         params: {
             value: value,
@@ -553,7 +557,8 @@ pimcore.helpers.showNotification = function (title, text, type, detailText, hide
             autoShow: true,
             width: 'auto',
             maxWidth: 350,
-            closeable: true
+            closeable: true,
+            align: "br"
         });
         notification.show(document);
     }
@@ -704,7 +709,7 @@ pimcore.helpers.handleF5 = function (keyCode, e) {
     }
 
     var date = new Date();
-    location.href = "/admin/?_dc=" + date.getTime();
+    location.href = Routing.generate('pimcore_admin_index', {'_dc': date.getTime()});
 };
 
 pimcore.helpers.lockManager = function (cid, ctype, csubtype, data) {
@@ -723,7 +728,7 @@ pimcore.helpers.lockManager = function (cid, ctype, csubtype, data) {
         function (lock, buttonValue) {
             if (buttonValue == "yes") {
                 Ext.Ajax.request({
-                    url: "/admin/element/unlock-element",
+                    url: Routing.generate('pimcore_admin_element_unlockelement'),
                     method: 'PUT',
                     params: {
                         id: lock[0],
@@ -796,7 +801,7 @@ pimcore.helpers.itemselector = function (muliselect, callback, restrictions, con
 pimcore.helpers.activateMaintenance = function () {
 
     Ext.Ajax.request({
-        url: "/admin/misc/maintenance?activate=true",
+        url: Routing.generate('pimcore_admin_misc_maintenance', {activate: true}),
         method: "POST"
     });
 
@@ -809,7 +814,7 @@ pimcore.helpers.activateMaintenance = function () {
 pimcore.helpers.deactivateMaintenance = function () {
 
     Ext.Ajax.request({
-        url: "/admin/misc/maintenance?deactivate=true",
+        url: Routing.generate('pimcore_admin_misc_maintenance', {deactivate: true}),
         method: "POST"
     });
 
@@ -931,7 +936,10 @@ pimcore.helpers.openMemorizedTabs = function () {
 
 pimcore.helpers.assetSingleUploadDialog = function (parent, parentType, success, failure, context) {
 
-    var url = '/admin/asset/add-asset-compatibility?parent' + ucfirst(parentType) + '=' + parent;
+    var params = {};
+    params['parent' + ucfirst(parentType)] = parent;
+
+    var url = Routing.generate('pimcore_admin_asset_addassetcompatibility', params);
     if (context) {
         url += "&context=" + Ext.encode(context);
     }
@@ -947,7 +955,7 @@ pimcore.helpers.addCsrfTokenToUrl = function (url) {
     return url;
 };
 
-pimcore.helpers.uploadDialog = function (url, filename, success, failure) {
+pimcore.helpers.uploadDialog = function (url, filename, success, failure, description) {
 
     if (typeof success != "function") {
         success = function () {
@@ -975,42 +983,54 @@ pimcore.helpers.uploadDialog = function (url, filename, success, failure) {
         modal: true
     });
 
+    var items = [];
+
+    if (description) {
+        items.push({
+           xtype: 'displayfield',
+           value: description
+        });
+    }
+
+    items.push({
+        xtype: 'fileuploadfield',
+        emptyText: t("select_a_file"),
+        fieldLabel: t("file"),
+        width: 470,
+        name: filename,
+        buttonText: "",
+        buttonConfig: {
+            iconCls: 'pimcore_icon_upload'
+        },
+        listeners: {
+            change: function () {
+                uploadForm.getForm().submit({
+                    url: url,
+                    params: {
+                        csrfToken: pimcore.settings['csrfToken']
+                    },
+                    waitMsg: t("please_wait"),
+                    success: function (el, res) {
+                        // content-type in response has to be text/html, otherwise (when application/json is sent)
+                        // chrome will complain in Ext.form.Action.Submit and mark the submission as failed
+                        success(res);
+                        uploadWindowCompatible.close();
+                    },
+                    failure: function (el, res) {
+                        failure(res);
+                        uploadWindowCompatible.close();
+                    }
+                });
+            }
+        }
+    });
+
+
     var uploadForm = new Ext.form.FormPanel({
         fileUpload: true,
         width: 500,
         bodyStyle: 'padding: 10px;',
-        items: [{
-            xtype: 'fileuploadfield',
-            emptyText: t("select_a_file"),
-            fieldLabel: t("file"),
-            width: 470,
-            name: filename,
-            buttonText: "",
-            buttonConfig: {
-                iconCls: 'pimcore_icon_upload'
-            },
-            listeners: {
-                change: function () {
-                    uploadForm.getForm().submit({
-                        url: url,
-                        params: {
-                            csrfToken: pimcore.settings['csrfToken']
-                        },
-                        waitMsg: t("please_wait"),
-                        success: function (el, res) {
-                            // content-type in response has to be text/html, otherwise (when application/json is sent)
-                            // chrome will complain in Ext.form.Action.Submit and mark the submission as failed
-                            success(res);
-                            uploadWindowCompatible.close();
-                        },
-                        failure: function (el, res) {
-                            failure(res);
-                            uploadWindowCompatible.close();
-                        }
-                    });
-                }
-            }
-        }]
+        items: items
     });
 
     uploadWindowCompatible.add(uploadForm);
@@ -1085,7 +1105,7 @@ pimcore.helpers.generatePagePreview = function (id, path, callback) {
 
     if (pimcore.settings.htmltoimage) {
         Ext.Ajax.request({
-            url: '/admin/page/generate-screenshot',
+            url: Routing.generate('pimcore_admin_document_page_generatescreenshot'),
             method: "POST",
             ignoreErrors: true,
             params: {
@@ -1105,8 +1125,7 @@ pimcore.helpers.treeNodeThumbnailLastClose = 0;
 
 pimcore.helpers.treeNodeThumbnailPreview = function (treeView, record, item, index, e, eOpts) {
 
-    if (typeof record.data["thumbnail"] != "undefined" ||
-        typeof record.data["thumbnails"] != "undefined") {
+    if (typeof record.data["thumbnail"] != "undefined") {
 
         // only display thumbnails when dnd is not active
         if (Ext.dd.DragDropMgr.dragCurrent) {
@@ -1116,16 +1135,6 @@ pimcore.helpers.treeNodeThumbnailPreview = function (treeView, record, item, ind
         var imageHtml = "";
         var uriPrefix = window.location.protocol + "//" + window.location.host;
 
-        var thumbnails = record.data["thumbnails"];
-        if (thumbnails && thumbnails.length) {
-            imageHtml += '<div class="thumbnails">';
-            for (var i = 0; i < thumbnails.length; i++) {
-                imageHtml += '<div class="thumb small"><img src="' + uriPrefix + thumbnails[i]
-                    + '" onload="this.parentNode.className += \' complete\';" /></div>';
-            }
-            imageHtml += '</div>';
-        }
-
         var thumbnail = record.data["thumbnail"];
         if (thumbnail) {
             var srcset = thumbnail + ' 1x';
@@ -1134,7 +1143,7 @@ pimcore.helpers.treeNodeThumbnailPreview = function (treeView, record, item, ind
                     srcset += ', ' + thumbnailHdpi + " 2x";
             }
 
-            imageHtml = '<div class="thumb big"><img src="' + uriPrefix + thumbnail
+            imageHtml = '<div class="thumb"><img src="' + uriPrefix + thumbnail
                 + '" onload="this.parentNode.className += \' complete\';" srcset="' + srcset + '" /></div>';
         }
 
@@ -1181,13 +1190,8 @@ pimcore.helpers.treeNodeThumbnailPreview = function (treeView, record, item, ind
             imageHtml =
                 '<style type="text/css">' +
                 'body { margin:0; padding: 0; } ' +
-                '.thumbnails { width: 410px; } ' +
-                '.thumb { border: 1px solid #999; background: url(' + uriPrefix + '/bundles/pimcoreadmin/img/flat-color-icons/hourglass.svg) no-repeat center center; background-size: 20px 20px; box-sizing: border-box; } ' +
-                '.big { min-height: 300px; } ' +
-                '.complete { border:none; border-radius: 0; background:none; }' +
-                '.small { width: 130px; height: 130px; float: left; overflow: hidden; margin: 0 5px 5px 0; } ' +
-                '.small.complete img { min-width: 100%; max-height: 100%; } ' +
-                '.big.complete img { max-width: 100%; } ' +
+                '.thumb { border: 1px solid #999; background: url(' + uriPrefix + '/bundles/pimcoreadmin/img/flat-color-icons/hourglass.svg) no-repeat center center; background-size: 20px 20px; box-sizing: border-box; min-height: 300px; } ' +
+                '.complete { border:none; border-radius: 0; background:none; max-width: 100%; }' +
                 '/* firefox fix: remove loading/broken image icon */ @-moz-document url-prefix() { img:-moz-loading { visibility: hidden; } img:-moz-broken { -moz-force-broken-image-icon: 0;}} ' +
                 '</style>' +
                 imageHtml;
@@ -1460,7 +1464,7 @@ pimcore.helpers.searchAndMove = function (parentId, callback, type) {
                     };
                 }
                 jobs.push([{
-                    url: "/admin/" + type + "/update",
+                    url: Routing.getBaseUrl() + "/admin/" + type + "/update",
                     method: 'PUT',
                     params: params
                 }]);
@@ -1724,7 +1728,7 @@ pimcore.helpers.sendTestEmail = function (from, to, subject, emailType, document
 
         win.disable();
         Ext.Ajax.request({
-            url: "/admin/email/send-test-email",
+            url: Routing.generate('pimcore_admin_email_sendtestemail'),
             params: params,
             method: "post",
             success: function () {
@@ -2281,7 +2285,7 @@ pimcore.helpers.showAbout = function () {
     html += '<br><b>Version: ' + pimcore.settings.version + '</b>';
     html += '<br><b>Git Hash: <a href="https://github.com/pimcore/pimcore/commit/' + pimcore.settings.build + '" target="_blank">' + pimcore.settings.build + '</a></b>';
     html += '<br><br>&copy; by pimcore GmbH (<a href="https://pimcore.com/" target="_blank">pimcore.com</a>)';
-    html += '<br><br><a href="https://github.com/pimcore/pimcore/blob/master/LICENSE.md" target="_blank">License</a> | ';
+    html += '<br><br><a href="https://github.com/pimcore/pimcore/blob/10.x/LICENSE.md" target="_blank">License</a> | ';
     html += '<a href="https://pimcore.com/en/about/contact" target="_blank">Contact</a>';
     html += '<img src="/bundles/pimcoreadmin/img/austria-heart.svg" style="position:absolute;top:172px;right:45px;width:32px;">';
     html += '</div>';
@@ -2300,10 +2304,24 @@ pimcore.helpers.showAbout = function () {
 
 pimcore.helpers.markColumnConfigAsFavourite = function (objectId, classId, gridConfigId, searchType, global, type) {
 
-    try {
+    type = type || "object";
 
-        type = type || "object";
-        var url = '/admin/' + type + '-helper/grid-mark-favourite-column-config';
+    var assetRoute = 'pimcore_admin_asset_assethelper_gridmarkfavouritecolumnconfig';
+    var objectRoute = 'pimcore_admin_dataobject_dataobjecthelper_gridmarkfavouritecolumnconfig';
+    var route = null;
+
+    if (type === 'object') {
+        route = objectRoute;
+    }
+    else if (type === 'asset') {
+        route = assetRoute;
+    }
+    else {
+        throw new Error('Unknown type given, given "' + type + '"');
+    }
+
+    try {
+        var url = Routing.generate(route);
 
         Ext.Ajax.request({
             url: url,
@@ -2355,7 +2373,7 @@ pimcore.helpers.removeOtherConfigs = function (objectId, classId, gridConfigId, 
         fn: function (btn) {
             if (btn == "yes") {
                 Ext.Ajax.request({
-                    url: '/admin/object-helper/grid-config-apply-to-all',
+                    url: Routing.generate('pimcore_admin_dataobject_dataobjecthelper_gridconfigapplytoall'),
                     method: "post",
                     params: {
                         objectId: objectId,
@@ -2370,8 +2388,23 @@ pimcore.helpers.removeOtherConfigs = function (objectId, classId, gridConfigId, 
     });
 };
 
-pimcore.helpers.saveColumnConfig = function (objectId, classId, configuration, searchType, button, callback, settings, type) {
+pimcore.helpers.saveColumnConfig = function (objectId, classId, configuration, searchType, button, callback, settings, type, context) {
 
+    type = type || "object";
+
+    var assetRoute = 'pimcore_admin_asset_assethelper_gridsavecolumnconfig';
+    var objectRoute = 'pimcore_admin_dataobject_dataobjecthelper_gridsavecolumnconfig';
+    var route = null;
+
+    if (type === 'object') {
+        route = objectRoute;
+    }
+    else if (type === 'asset') {
+        route = assetRoute;
+    }
+    else {
+        throw new Error('Unknown type given, given "' + type + '"');
+    }
 
     try {
         type = type || "object";
@@ -2381,10 +2414,11 @@ pimcore.helpers.saveColumnConfig = function (objectId, classId, configuration, s
             gridconfig: Ext.encode(configuration),
             searchType: searchType,
             settings: Ext.encode(settings),
+            context: Ext.encode(context),
             type: type
         };
 
-        var url = '/admin/' + type + '-helper/grid-save-column-config';
+        var url = Routing.generate(route);
 
         Ext.Ajax.request({
             url: url,
@@ -2526,7 +2560,7 @@ pimcore.helpers.requestNicePathData = function (source, targets, config, fieldCo
 
     Ext.Ajax.request({
         method: 'POST',
-        url: "/admin/element/get-nice-path",
+        url: Routing.generate('pimcore_admin_element_getnicepath'),
         params: {
             source: Ext.encode(source),
             targets: elementData,
@@ -2549,6 +2583,8 @@ pimcore.helpers.requestNicePathData = function (source, targets, config, fieldCo
             }
         }.bind(this)
     });
+
+    return true;
 };
 
 pimcore.helpers.getNicePathHandlerStore = function (store, config, gridView, responseData) {
@@ -2649,8 +2685,10 @@ pimcore.helpers.exportWarning = function (type, callback) {
         buttons: [{
             text: t("OK"),
             handler: function () {
-                callback(formPanel.getValues());
-                window.close();
+                if (formPanel.isValid()) {
+                    callback(formPanel.getValues());
+                    window.close();
+                }
             }.bind(this)
         },
             {
@@ -2691,10 +2729,7 @@ pimcore.helpers.isValidPassword = function (pass) {
 };
 
 pimcore.helpers.getDeeplink = function (type, id, subtype) {
-    return window.location.protocol + "//"
-        + window.location.hostname
-        + (window.location.port && window.location.port !== "80" && window.location.port !== "443" ? ":" + window.location.port : "")
-        + "/admin/login/deeplink?" + type + "_" + id + "_" + subtype;
+    return Routing.generate('pimcore_admin_login_deeplink', {}, true) + '?' + type + "_" + id + "_" + subtype;
 };
 
 pimcore.helpers.showElementHistory = function() {
@@ -2764,13 +2799,6 @@ pimcore.helpers.reports = function() {
     var user = pimcore.globalmanager.get("user");
     if (user.isAllowed("reports")) {
         pimcore.layout.toolbar.prototype.showReports(null);
-    }
-};
-
-pimcore.helpers.tagManager = function() {
-    var user = pimcore.globalmanager.get("user");
-    if (user.isAllowed("tag_snippet_management")) {
-        pimcore.layout.toolbar.prototype.showTagManagement();
     }
 };
 
@@ -2973,16 +3001,19 @@ pimcore.helpers.registerAssetDnDSingleUpload = function (element, parent, parent
                     win.add(pbar);
                     win.updateLayout();
 
-                    var uploadUrl = "/admin/asset/add-asset?";
+                    var params = {};
+
                     if(parentType === 'path') {
-                        uploadUrl += "parentPath=" + parent;
+                        params['parentPath'] = parent;
                     } else if (parentType === 'id') {
-                        uploadUrl += "parentId=" + parent;
+                        params['parentId'] = parent;
                     }
 
                     if (context) {
-                        uploadUrl += "&context=" + Ext.encode(context);
+                        params['context'] = Ext.encode(context);
                     }
+
+                    var uploadUrl = Routing.generate('pimcore_admin_asset_addasset', params);
 
                     pimcore.helpers.uploadAssetFromFileObject(file, uploadUrl,
                         function (evt) {
@@ -3148,3 +3179,44 @@ pimcore.helpers.getProgressWindowListeners = function () {
         }
     };
 };
+
+pimcore.helpers.reloadUserImage = function (userId) {
+    var image = Routing.generate('pimcore_admin_user_getimage', {id: userId, '_dc': Ext.Date.now()});
+
+    if (pimcore.currentuser.id == userId) {
+        Ext.get("pimcore_avatar").query('img')[0].src = image;
+    }
+
+    if (Ext.getCmp("pimcore_user_image_" + userId)) {
+        Ext.getCmp("pimcore_user_image_" + userId).setSrc(image);
+    }
+
+    if (Ext.getCmp("pimcore_profile_image_" + userId)) {
+        Ext.getCmp("pimcore_profile_image_" + userId).setSrc(image);
+    }
+};
+
+/**
+ * Takes a number representing seconds and formats it as a human-readable string such as "1:15:05" for 1 hour 15 minutes 5 seconds
+ * @param {int|float} dataDuration duration in seconds
+ * @returns {string|*}
+ */
+pimcore.helpers.formatTimeDuration = function (dataDuration) {
+    if (!is_numeric(dataDuration)) {
+        // Unknown data, return as is
+        return dataDuration;
+    }
+
+    let durationString = '';
+
+    let hours = Math.floor(dataDuration / 3600);
+    dataDuration %= 3600;
+    if (hours > 0) {
+        durationString += hours + ":";
+    }
+
+    durationString += Math.floor(dataDuration / 60) + ":";
+    durationString += ("0" + Math.round(dataDuration % 60)).slice(-2);
+
+    return durationString;
+}

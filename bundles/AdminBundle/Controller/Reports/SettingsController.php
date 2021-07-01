@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Reports;
@@ -22,11 +23,13 @@ use Symfony\Component\Routing\Annotation\Route;
 
 /**
  * @Route("/settings")
+ *
+ * @internal
  */
 class SettingsController extends ReportsControllerBase
 {
     /**
-     * @Route("/get", methods={"GET"})
+     * @Route("/get", name="pimcore_admin_reports_settings_get", methods={"GET"})
      *
      * @param Request $request
      *
@@ -45,14 +48,14 @@ class SettingsController extends ReportsControllerBase
 
         $response = [
             'values' => $config,
-            'config' => []
+            'config' => [],
         ];
 
         return $this->adminJson($response);
     }
 
     /**
-     * @Route("/save", methods={"PUT"})
+     * @Route("/save", name="pimcore_admin_reports_settings_save", methods={"PUT"})
      *
      * @param Request $request
      * @param ReportConfigWriter $configWriter

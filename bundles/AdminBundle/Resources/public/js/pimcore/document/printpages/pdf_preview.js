@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.document.printpages.pdfpreview");
@@ -59,7 +59,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
                     iconCls: "pimcore_icon_cancel",
                     handler: function() {
                         Ext.Ajax.request({
-                            url: "/admin/printpage/cancel-generation",
+                            url: Routing.generate('pimcore_admin_document_printpage_cancelgeneration'),
                             method: 'DELETE',
                             params: {id: this.page.id},
                             success: function(response) {
@@ -89,7 +89,8 @@ pimcore.document.printpages.pdfpreview = Class.create({
                 style: "float: right; margin-top: 10px",
                 handler: function () {
                     var date = new Date();
-                    pimcore.helpers.download("/admin/printpage/pdf-download?download=1&id=" + this.page.id + "&time=" + date.getTime());
+                    var url = Routing.generate('pimcore_admin_document_printpage_pdfdownload', {id: this.page.id, download: 1, time: date.getTime()});
+                    pimcore.helpers.download(url);
                 }.bind(this)
             });
             this.generatedDateField = new Ext.form.TextField({
@@ -174,7 +175,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
 
         this.processingOptionsStore = new Ext.data.JsonStore({
             proxy: {
-                url: '/admin/printpage/get-processing-options',
+                url: Routing.generate('pimcore_admin_document_printcontainer_getprocessingoptions'),
                 type: 'ajax',
                 reader: {
                     type: 'json',
@@ -340,7 +341,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
         params.id = this.page.id;
 
         Ext.Ajax.request({
-            url: "/admin/printpage/start-pdf-generation",
+            url: Routing.generate('pimcore_admin_document_printpage_startpdfgeneration'),
             method: 'POST',
             jsonData: params,
             success: function(response) {
@@ -371,7 +372,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
 
     loadCurrentPreview: function () {
         var date = new Date();
-        var url = "/admin/printpage/pdf-download?id=" + this.page.id + "&time=" + date.getTime();
+        var url = Routing.generate('pimcore_admin_document_printpage_pdfdownload', {id: this.page.id, time: date.getTime()});
 
         try {
             Ext.get(this.iframeName).dom.src = url;
@@ -391,7 +392,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
 
     checkForActiveGenerateProcess: function() {
         Ext.Ajax.request({
-            url: "/admin/printpage/active-generate-process",
+            url: Routing.generate('pimcore_admin_document_printpage_activegenerateprocess'),
             method: 'POST',
             params: {id: this.page.id},
             success: function(response) {
@@ -429,7 +430,7 @@ pimcore.document.printpages.pdfpreview = Class.create({
 
     checkPdfDirtyState: function() {
         Ext.Ajax.request({
-            url: "/admin/printpage/check-pdf-dirty",
+            url: Routing.generate('pimcore_admin_document_printpage_checkpdfdirty'),
             params: {id: this.page.id},
             success: function(response) {
                 result = Ext.decode(response.responseText);

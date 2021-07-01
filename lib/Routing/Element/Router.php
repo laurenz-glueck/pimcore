@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Routing\Element;
@@ -43,6 +44,10 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
      */
     protected $requestHelper;
 
+    /**
+     * @param RequestContext $context
+     * @param RequestHelper $requestHelper
+     */
     public function __construct(RequestContext $context, RequestHelper $requestHelper)
     {
         $this->context = $context;
@@ -50,7 +55,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function setContext(RequestContext $context)
     {
@@ -58,7 +63,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getContext()
     {
@@ -66,7 +71,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function supports($name)
     {
@@ -74,7 +79,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getRouteDebugMessage($name, array $parameters = [])
     {
@@ -86,12 +91,44 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function generate($name, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
     {
         if ($name instanceof Document || $name instanceof Asset) {
-            return $name->getFullPath();
+            $schemeAuthority = '';
+            $host = $this->context->getHost();
+            $scheme = $this->context->getScheme();
+            $path = $name->getFullPath();
+            $needsHostname = self::ABSOLUTE_URL === $referenceType || self::NETWORK_PATH === $referenceType;
+
+            if (strpos($path, '://') !== false) {
+                $host = parse_url($path, PHP_URL_HOST);
+                $scheme = parse_url($path, PHP_URL_SCHEME);
+                $path = parse_url($path, PHP_URL_PATH);
+                $needsHostname = true;
+            }
+
+            if ($needsHostname) {
+                if ('' !== $host || ('' !== $scheme && 'http' !== $scheme && 'https' !== $scheme)) {
+                    $port = '';
+                    if ('http' === $scheme && 80 !== $this->context->getHttpPort()) {
+                        $port = ':'.$this->context->getHttpPort();
+                    } elseif ('https' === $scheme && 443 !== $this->context->getHttpsPort()) {
+                        $port = ':'.$this->context->getHttpsPort();
+                    }
+
+                    $schemeAuthority = self::NETWORK_PATH === $referenceType || '' === $scheme ? '//' : "$scheme://";
+                    $schemeAuthority .= $host.$port;
+                }
+            }
+
+            $qs = http_build_query($parameters);
+            if ($qs) {
+                $qs = '?' . $qs;
+            }
+
+            return $schemeAuthority . $this->context->getBaseUrl() . $path . $qs;
         }
         if ($name instanceof Concrete) {
             $linkGenerator = $name->getClass()->getLinkGenerator();
@@ -138,13 +175,16 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
         return $route;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function matchRequest(Request $request)
     {
         throw new ResourceNotFoundException(sprintf('No routes found for "%s".', $request->getPathInfo()));
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function match($pathinfo)
     {
@@ -152,7 +192,7 @@ class Router implements RouterInterface, RequestMatcherInterface, VersatileGener
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getRouteCollection()
     {

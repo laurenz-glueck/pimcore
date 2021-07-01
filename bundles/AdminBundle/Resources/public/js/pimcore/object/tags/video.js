@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.tags.video");
@@ -35,25 +35,29 @@ pimcore.object.tags.video = Class.create(pimcore.object.tags.abstract, {
             renderer: function (key, value, metaData, record) {
                 this.applyPermissionStyle(key, value, metaData, record);
 
-                if (record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited
+                if (record.data.inheritedFields && record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited
                     == true) {
                     metaData.tdCls += " grid_value_inherited";
                 }
 
                 if (value && value.id) {
-                    return '<img src="/admin/asset/get-video-thumbnail?id=' + value.id
-                        + '&width=88&height=88&frame=true" />';
+                    var path = Routing.generate('pimcore_admin_asset_getvideothumbnail', {
+                        id: value.id,
+                        width: 88,
+                        height: 88,
+                        frame: true
+                    });
+                    return '<img src="' + path + '" />';
                 }
             }.bind(this, field.key)
         };
     },
 
     getLayoutEdit: function () {
-
-        if (intval(this.fieldConfig.width) < 1) {
+        if (!this.fieldConfig.width) {
             this.fieldConfig.width = 300;
         }
-        if (intval(this.fieldConfig.height) < 1) {
+        if (!this.fieldConfig.height) {
             this.fieldConfig.height = 300;
         }
 
@@ -74,7 +78,7 @@ pimcore.object.tags.video = Class.create(pimcore.object.tags.abstract, {
                 iconCls: "pimcore_icon_delete",
                 handler: this.empty.bind(this)
             }],
-            componentCls: "object_field",
+            componentCls: "object_field object_field_type_" + this.type,
             bodyCls: "pimcore_video_container"
         };
 
@@ -91,11 +95,10 @@ pimcore.object.tags.video = Class.create(pimcore.object.tags.abstract, {
     },
 
     getLayoutShow: function () {
-
-        if (intval(this.fieldConfig.width) < 1) {
+        if (!this.fieldConfig.width) {
             this.fieldConfig.width = 300;
         }
-        if (intval(this.fieldConfig.height) < 1) {
+        if (!this.fieldConfig.height) {
             this.fieldConfig.height = 300;
         }
 
@@ -105,7 +108,7 @@ pimcore.object.tags.video = Class.create(pimcore.object.tags.abstract, {
             title: this.fieldConfig.title,
             border: true,
             style: "padding-bottom: 10px",
-            cls: "object_field",
+            cls: "object_field object_field_type_" + this.type,
             bodyCls: "pimcore_video_container"
         };
 
@@ -176,16 +179,26 @@ pimcore.object.tags.video = Class.create(pimcore.object.tags.abstract, {
     updateVideo: function () {
 
         var width = this.component.getWidth();
-        //need to geht height this way, because element has no hight at afterrender (whyever)
+        //need to geht height this way, because element has no height at afterrender (whyever)
         var height = this.fieldConfig.height - 55;
 
         var content = '';
 
         if (this.data.type == "asset" && pimcore.settings.videoconverter) {
-            content = '<img src="/admin/asset/get-video-thumbnail?width='
-                + width + "&height=" + height + '&frame=true&' + Ext.urlEncode({path: this.data.data}) + '" />';
+            var path = Routing.generate('pimcore_admin_asset_getvideothumbnail', {
+                    path: this.data.data,
+                    width: width,
+                    height: height,
+                    frame: true
+                });
+
+            content = '<img src="'+path+'" />';
         } else if (this.data.type == "youtube") {
-            content = '<iframe width="' + width + '" height="' + height + '" src="https://www.youtube-nocookie.com/embed/' + this.data.data + '" frameborder="0" allowfullscreen></iframe>';
+            if (this.data.data.indexOf('PL') === 0) {
+                content = '<iframe width="' + width + '" height="' + height + '" src="https://www.youtube-nocookie.com/embed/videoseries?list=' + this.data.data + '" frameborder="0" allowfullscreen></iframe>';
+            } else {
+                content = '<iframe width="' + width + '" height="' + height + '" src="https://www.youtube-nocookie.com/embed/' + this.data.data + '" frameborder="0" allowfullscreen></iframe>';
+            }
         } else if (this.data.type == "vimeo") {
             content = '<iframe src="https://player.vimeo.com/video/' + this.data.data + '?title=0&amp;byline=0&amp;portrait=0" width="' + width + '" height="' + height + '" frameborder="0" webkitAllowFullScreen mozallowfullscreen allowFullScreen></iframe>';
         } else if (this.data.type == "dailymotion") {

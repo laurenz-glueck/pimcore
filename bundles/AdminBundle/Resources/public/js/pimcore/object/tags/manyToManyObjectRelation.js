@@ -3,12 +3,12 @@
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
  * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ * @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 pimcore.registerNS("pimcore.object.tags.manyToManyObjectRelation");
@@ -67,7 +67,7 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
                 function (key, value, metaData, record) {
                     this.applyPermissionStyle(key, value, metaData, record);
 
-                    if (record.data.inheritedFields && record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited == true) {
+                    if (record.data.inheritedFields && record.data.inheritedFields && record.data.inheritedFields[key] && record.data.inheritedFields[key].inherited == true) {
                         metaData.tdCls += " grid_value_inherited";
                     }
 
@@ -194,7 +194,7 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
 
         if (!invalid) {
             Ext.Ajax.request({
-                url: "/admin/object/add",
+                url: Routing.generate('pimcore_admin_dataobject_dataobject_add'),
                 method: 'POST',
                 params: {
                     className: className,
@@ -324,9 +324,15 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
                 fc.layout = field;
                 fc.editor = null;
                 fc.sortable = false;
+
                 if(fc.layout.key === "fullpath") {
                     fc.renderer = this.fullPathRenderCheck.bind(this);
+                } else if(fc.layout.layout.fieldtype == "select" || fc.layout.layout.fieldtype == "multiselect") {
+                    fc.layout.layout.options.forEach(option => {
+                        option.key = t(option.key);
+                    });
                 }
+
                 columns.push(fc);
             }
         }
@@ -335,12 +341,11 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
     },
 
     getLayoutEdit: function () {
-
-        if (intval(this.fieldConfig.height) < 15) {
+        if (!this.fieldConfig.height) {
             this.fieldConfig.height = null;
         }
 
-        var cls = 'object_field';
+        var cls = 'object_field object_field_type_' + this.type;
 
         var columns = this.getVisibleColumns();
         var toolbarItems = this.getEditToolbarItems();
@@ -442,7 +447,7 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
                     }.bind(this)
                 }
             },
-            selModel: Ext.create('Ext.selection.RowModel', {}),
+            multiSelect: true,
             columns: {
                 defaults: {
                     sortable: false
@@ -585,9 +590,8 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
 
 
     getLayoutShow: function () {
-
         var autoHeight = false;
-        if (intval(this.fieldConfig.height) < 15) {
+        if (!this.fieldConfig.height) {
             autoHeight = true;
         }
 
@@ -621,7 +625,7 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
             height: this.fieldConfig.height,
             autoHeight: autoHeight,
             border: true,
-            cls: "object_field",
+            cls: "object_field object_field_type_" + this.type,
             autoExpandColumn: 'path',
             style: "margin-bottom: 10px",
             title: this.fieldConfig.title,
@@ -883,7 +887,7 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
         var newItem = this.store.add(item);
 
         Ext.Ajax.request({
-            url: "/admin/object-helper/load-object-data",
+            url: Routing.generate('pimcore_admin_dataobject_dataobjecthelper_loadobjectdata'),
             params: {
                 id: item.id,
                 'fields[]': fields
@@ -908,6 +912,3 @@ pimcore.object.tags.manyToManyObjectRelation = Class.create(pimcore.object.tags.
     },
 
 });
-
-// @TODO BC layer, to be removed in v7.0
-pimcore.object.tags.objects = pimcore.object.tags.manyToManyObjectRelation;

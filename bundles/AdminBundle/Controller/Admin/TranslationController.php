@@ -1,19 +1,21 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin;
 
+use Doctrine\DBAL\Query\QueryBuilder as DoctrineQueryBuilder;
 use Pimcore\Bundle\AdminBundle\Controller\AdminController;
 use Pimcore\File;
 use Pimcore\Localization\LocaleServiceInterface;
@@ -36,14 +38,17 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * @Route("/translation")
+ *
+ * @internal
  */
 class TranslationController extends AdminController
 {
     /**
-     * @Route("/import", methods={"POST"})
+     * @Route("/import", name="pimcore_admin_translation_import", methods={"POST"})
      *
      * @param Request $request
      * @param LocaleServiceInterface $localeService
@@ -73,10 +78,11 @@ class TranslationController extends AdminController
         $overwrite = $merge ? false : true;
 
         if ($admin) {
-            $delta = Translation\Admin::importTranslationsFromFile($tmpFile, $overwrite, Tool\Admin::getLanguages(), $dialect);
+            $delta = Translation::importTranslationsFromFile($tmpFile, Translation::DOMAIN_ADMIN, $overwrite, Tool\Admin::getLanguages(), $dialect);
         } else {
-            $delta = Translation\Website::importTranslationsFromFile(
+            $delta = Translation::importTranslationsFromFile(
                 $tmpFile,
+                Translation::DOMAIN_DEFAULT,
                 $overwrite,
                 $this->getAdminUser()->getAllowedLanguagesForEditingWebsiteTranslations(),
                 $dialect
@@ -97,7 +103,7 @@ class TranslationController extends AdminController
                 $lg = $item['lg'];
                 $currentLocale = $localeService->findLocale();
                 $item['lgname'] = \Locale::getDisplayLanguage($lg, $currentLocale);
-                $item['icon'] = '/admin/misc/get-language-flag?language=' . $lg;
+                $item['icon'] = $this->generateUrl('pimcore_admin_misc_getlanguageflag', ['language' => $lg]);
                 $item['current'] = $item['text'];
                 $enrichedDelta[] = $item;
             }
@@ -114,7 +120,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/upload-import", methods={"POST"})
+     * @Route("/upload-import", name="pimcore_admin_translation_uploadimportfile", methods={"POST"})
      *
      * @param Request $request
      *
@@ -142,12 +148,12 @@ class TranslationController extends AdminController
             'config' => [
                 'tmpFile' => $filename,
                 'csvSettings' => $dialect,
-            ]
+            ],
         ]);
     }
 
     /**
-     * @Route("/export", methods={"GET"})
+     * @Route("/export", name="pimcore_admin_translation_export", methods={"GET"})
      *
      * @param Request $request
      *
@@ -158,22 +164,19 @@ class TranslationController extends AdminController
         $admin = $request->get('admin');
         $this->checkPermission(($admin ? 'admin_' : '') . 'translations');
 
+        $domain = Translation::DOMAIN_DEFAULT;
         if ($admin) {
-            $class = '\\Pimcore\\Model\\Translation\\Admin';
-        } else {
-            $class = '\\Pimcore\\Model\\Translation\\Website';
+            $domain = Translation::DOMAIN_ADMIN;
         }
-
-        $tableName = call_user_func($class . '\\Dao::getTableName');
+        $translation = new Translation();
+        $translation->setDomain($domain);
+        $tableName = $translation->getDao()->getDatabaseTableName();
 
         // clear translation cache
-        Translation\AbstractTranslation::clearDependentCache();
+        Translation::clearDependentCache();
 
-        if ($admin) {
-            $list = new Translation\Admin\Listing();
-        } else {
-            $list = new Translation\Website\Listing();
-        }
+        $list = new Translation\Listing();
+        $list->setDomain($domain);
 
         $joins = [];
 
@@ -200,10 +203,11 @@ class TranslationController extends AdminController
         // fill with one dummy translation if the store is empty
         if (empty($translationObjects)) {
             if ($admin) {
-                $t = new Translation\Admin();
+                $t = new Translation();
+                $t->setDomain(Translation::DOMAIN_ADMIN);
                 $languages = Tool\Admin::getLanguages();
             } else {
-                $t = new Translation\Website();
+                $t = new Translation();
                 $languages = $this->getAdminUser()->getAllowedLanguagesForViewingWebsiteTranslations();
             }
 
@@ -271,18 +275,17 @@ class TranslationController extends AdminController
             $csv .= implode(';', $tempRow) . "\r\n";
         }
 
-        $suffix = $admin ? 'admin' : 'website';
         $response = new Response("\xEF\xBB\xBF" . $csv);
         $response->headers->set('Content-Encoding', 'UTF-8');
         $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
-        $response->headers->set('Content-Disposition', 'attachment; filename="export_ ' . $suffix . '_translations.csv"');
+        $response->headers->set('Content-Disposition', 'attachment; filename="export_' . $domain . '_translations.csv"');
         ini_set('display_errors', false); //to prevent warning messages in csv
 
         return $response;
     }
 
     /**
-     * @Route("/add-admin-translation-keys", methods={"POST"})
+     * @Route("/add-admin-translation-keys", name="pimcore_admin_translation_addadmintranslationkeys", methods={"POST"})
      *
      * @param Request $request
      *
@@ -298,13 +301,13 @@ class TranslationController extends AdminController
                 $t = null; // reset
 
                 try {
-                    $t = Translation\Admin::getByKey($translationData);
+                    $t = Translation::getByKey($translationData, Translation::DOMAIN_ADMIN);
                 } catch (\Exception $e) {
                     Logger::log($e);
                 }
-                if (!$t instanceof Translation\Admin) {
-                    $t = new Translation\Admin();
-
+                if (!$t instanceof Translation) {
+                    $t = new Translation();
+                    $t->setDomain(Translation::DOMAIN_ADMIN);
                     $t->setKey($translationData);
                     $t->setCreationDate(time());
                     $t->setModificationDate(time());
@@ -326,44 +329,47 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/translations", methods={"POST"})
+     * @Route("/translations", name="pimcore_admin_translation_translations", methods={"POST"})
      *
      * @param Request $request
      * @param Translator $translator
      *
      * @return JsonResponse
      */
-    public function translationsAction(Request $request, Translator $translator)
+    public function translationsAction(Request $request, TranslatorInterface $translator)
     {
         $admin = $request->get('admin');
 
         $this->checkPermission(($admin ? 'admin_' : '') . 'translations');
 
+        $domain = Translation::DOMAIN_DEFAULT;
         if ($admin) {
-            $class = '\\Pimcore\\Model\\Translation\\Admin';
-        } else {
-            $class = '\\Pimcore\\Model\\Translation\\Website';
+            $domain = Translation::DOMAIN_ADMIN;
         }
 
-        $tableName = call_user_func($class . '\\Dao::getTableName');
+        $translation = new Translation();
+        $translation->setDomain($domain);
+        $tableName = $translation->getDao()->getDatabaseTableName();
 
         // clear translation cache
-        Translation\Website::clearDependentCache();
+        Translation::clearDependentCache();
 
         if ($request->get('data')) {
             $data = $this->decodeJson($request->get('data'));
 
             if ($request->get('xaction') == 'destroy') {
-                $t = $class::getByKey($data['key']);
-                $t->delete();
+                $t = Translation::getByKey($data['key'], $domain);
+                if ($t instanceof Translation) {
+                    $t->delete();
+                }
 
                 return $this->adminJson(['success' => true, 'data' => []]);
             } elseif ($request->get('xaction') == 'update') {
-                $t = $class::getByKey($data['key']);
+                $t = Translation::getByKey($data['key'], $domain);
 
                 foreach ($data as $key => $value) {
                     $key = preg_replace('/^_/', '', $key, 1);
-                    if ($key != 'key') {
+                    if (!in_array($key, ['key', 'type'])) {
                         $t->addTranslation($key, $value);
                     }
                 }
@@ -371,27 +377,36 @@ class TranslationController extends AdminController
                 if ($data['key']) {
                     $t->setKey($data['key']);
                 }
+
+                if ($data['type']) {
+                    $t->setType($data['type']);
+                }
                 $t->setModificationDate(time());
                 $t->save();
 
                 $return = array_merge(
-                    ['key' => $t->getKey(),
+                    [
+                        'key' => $t->getKey(),
                         'creationDate' => $t->getCreationDate(),
-                        'modificationDate' => $t->getModificationDate()],
+                        'modificationDate' => $t->getModificationDate(),
+                        'type' => $t->getType(),
+                    ],
                     $this->prefixTranslations($t->getTranslations())
                 );
 
                 return $this->adminJson(['data' => $return, 'success' => true]);
             } elseif ($request->get('xaction') == 'create') {
-                $t = $class::getByKey($data['key']);
+                $t = Translation::getByKey($data['key'], $domain);
                 if ($t) {
-                    throw new \Exception($translator->trans('identifier_already_exists', [], 'admin'));
+                    throw new \Exception($translator->trans('identifier_already_exists', [], $domain));
                 }
 
-                $t = new $class();
+                $t = new Translation();
+                $t->setDomain($domain);
                 $t->setKey($data['key']);
                 $t->setCreationDate(time());
                 $t->setModificationDate(time());
+                $t->setType($data['type'] ?? null);
 
                 foreach (Tool::getValidLanguages() as $lang) {
                     $t->addTranslation($lang, '');
@@ -403,6 +418,7 @@ class TranslationController extends AdminController
                         'key' => $t->getKey(),
                         'creationDate' => $t->getCreationDate(),
                         'modificationDate' => $t->getModificationDate(),
+                        'type' => $t->getType(),
                     ],
                     $this->prefixTranslations($t->getTranslations())
                 );
@@ -411,11 +427,8 @@ class TranslationController extends AdminController
             }
         } else {
             // get list of types
-            if ($admin) {
-                $list = new Translation\Admin\Listing();
-            } else {
-                $list = new Translation\Website\Listing();
-            }
+            $list = new Translation\Listing();
+            $list->setDomain($domain);
 
             $validLanguages = $admin ? Tool\Admin::getLanguages() : $this->getAdminUser()->getAllowedLanguagesForViewingWebsiteTranslations();
 
@@ -435,7 +448,7 @@ class TranslationController extends AdminController
                         'language' => $orderKey,
                     ];
                     $list->setOrderKey($orderKey);
-                } else {
+                } elseif ($list->isValidOrderKey($sortingSettings['orderKey'])) {
                     $list->setOrderKey($tableName . '.' . $sortingSettings['orderKey'], false);
                 }
             }
@@ -464,9 +477,12 @@ class TranslationController extends AdminController
             foreach ($list->getTranslations() as $t) {
                 $translations[] = array_merge(
                     $this->prefixTranslations($t->getTranslations()),
-                    ['key' => $t->getKey(),
+                    [
+                        'key' => $t->getKey(),
                         'creationDate' => $t->getCreationDate(),
-                        'modificationDate' => $t->getModificationDate()]
+                        'modificationDate' => $t->getModificationDate(),
+                        'type' => $t->getType(),
+                    ]
                 );
             }
 
@@ -497,15 +513,15 @@ class TranslationController extends AdminController
 
     /**
      * @param array $joins
-     * @param Translation\AbstractTranslation\Listing $list
+     * @param Translation\Listing $list
      * @param string $tableName
      * @param array $filters
      */
     protected function extendTranslationQuery($joins, $list, $tableName, $filters)
     {
         if ($joins) {
-            $list->onCreateQuery(
-                function (\Pimcore\Db\ZendCompatibility\QueryBuilder $select) use (
+            $list->onCreateQueryBuilder(
+                function (DoctrineQueryBuilder $select) use (
                     $joins,
                     $tableName,
                     $filters
@@ -517,20 +533,20 @@ class TranslationController extends AdminController
                     foreach ($joins as $join) {
                         $fieldname = $join['language'];
 
-                        if ($alreadyJoined[$fieldname]) {
+                        if (isset($alreadyJoined[$fieldname])) {
                             continue;
                         }
                         $alreadyJoined[$fieldname] = 1;
 
-                        $select->joinLeft(
-                            [$fieldname => $tableName],
+                        $select->addSelect($fieldname . '.text AS ' . $fieldname);
+                        $select->leftJoin(
+                            $tableName,
+                            $tableName,
+                            $fieldname,
                             '('
                             . $fieldname . '.key = ' . $tableName . '.key'
                             . ' and ' . $fieldname . '.language = ' . $db->quote($fieldname)
-                            . ')',
-                            [
-                                $fieldname => 'text',
-                            ]
+                            . ')'
                         );
                     }
 
@@ -641,7 +657,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/cleanup", methods={"DELETE"})
+     * @Route("/cleanup", name="pimcore_admin_translation_cleanup", methods={"DELETE"})
      *
      * @param Request $request
      *
@@ -649,17 +665,19 @@ class TranslationController extends AdminController
      */
     public function cleanupAction(Request $request)
     {
-        $listClass = '\\Pimcore\\Model\\Translation\\' . ucfirst($request->get('type')) . '\\Listing';
-        if (Tool::classExists($listClass)) {
-            $list = new $listClass();
-            $list->cleanup();
-
-            \Pimcore\Cache::clearTags(['translator', 'translate']);
-
-            return $this->adminJson(['success' => true]);
+        $admin = $request->get('admin');
+        $domain = Translation::DOMAIN_DEFAULT;
+        if ($admin) {
+            $domain = Translation::DOMAIN_ADMIN;
         }
 
-        return $this->adminJson(['success' => false]);
+        $list = new Translation\Listing();
+        $list->setDomain($domain);
+        $list->cleanup();
+
+        \Pimcore\Cache::clearTags(['translator', 'translate']);
+
+        return $this->adminJson(['success' => true]);
     }
 
     /**
@@ -670,7 +688,7 @@ class TranslationController extends AdminController
      */
 
     /**
-     * @Route("/content-export-jobs", methods={"POST"})
+     * @Route("/content-export-jobs", name="pimcore_admin_translation_contentexportjobs", methods={"POST"})
      *
      * @param Request $request
      *
@@ -707,14 +725,14 @@ class TranslationController extends AdminController
                     if ($el instanceof DataObject\AbstractObject) {
                         // inlcude variants
                         $list->setObjectTypes(
-                            [DataObject\AbstractObject::OBJECT_TYPE_VARIANT,
-                                DataObject\AbstractObject::OBJECT_TYPE_OBJECT,
-                                DataObject\AbstractObject::OBJECT_TYPE_FOLDER]
+                            [DataObject::OBJECT_TYPE_VARIANT,
+                                DataObject::OBJECT_TYPE_OBJECT,
+                                DataObject::OBJECT_TYPE_FOLDER, ]
                         );
                     }
                     $list->setCondition(
-                        ($el instanceof DataObject\AbstractObject ? 'o_' : '') . 'path LIKE ?',
-                        [$el->getRealFullPath() . ($el->getRealFullPath() != '/' ? '/' : '') . '%']
+                        ($el instanceof DataObject ? 'o_' : '') . 'path LIKE ?',
+                        [$list->escapeLike($el->getRealFullPath() . ($el->getRealFullPath() != '/' ? '/' : '')) . '%']
                     );
                     $childs = $list->load();
 
@@ -737,7 +755,7 @@ class TranslationController extends AdminController
                 }
 
                 if (isset($element['relations']) && $element['relations']) {
-                    if (!$el instanceof Element\AbstractElement) {
+                    if (!$el instanceof Element\ElementInterface) {
                         $el = Element\Service::getElementById($element['type'], $element['id']);
                     }
 
@@ -766,7 +784,7 @@ class TranslationController extends AdminController
         $elements = array_chunk($elements, $elementsPerJob);
         foreach ($elements as $chunk) {
             $jobs[] = [[
-                'url' => '/admin/translation/' . $type . '-export',
+                'url' => $request->getBaseUrl() . '/admin/translation/' . $type . '-export',
                 'method' => 'POST',
                 'params' => [
                     'id' => $exportId,
@@ -787,7 +805,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/xliff-export", methods={"POST"})
+     * @Route("/xliff-export", name="pimcore_admin_translation_xliffexport", methods={"POST"})
      *
      * @param Request $request
      * @param ExportServiceInterface $exportService
@@ -813,12 +831,12 @@ class TranslationController extends AdminController
         $exportService->exportTranslationItems($translationItems, $source, [$target], $id);
 
         return $this->adminJson([
-            'success' => true
+            'success' => true,
         ]);
     }
 
     /**
-     * @Route("/xliff-export-download", methods={"GET"})
+     * @Route("/xliff-export-download", name="pimcore_admin_translation_xliffexportdownload", methods={"GET"})
      *
      * @param Request $request
      * @param ExporterInterface $translationExporter
@@ -839,7 +857,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/xliff-import-upload", methods={"POST"})
+     * @Route("/xliff-import-upload", name="pimcore_admin_translation_xliffimportupload", methods={"POST"})
      *
      * @param Request $request
      * @param ImportDataExtractorInterface $importDataExtractor
@@ -859,19 +877,19 @@ class TranslationController extends AdminController
 
         for ($i = 0; $i < $steps; $i++) {
             $jobs[] = [[
-                'url' => '/admin/translation/xliff-import-element',
+                'url' => $this->generateUrl('pimcore_admin_translation_xliffimportelement'),
                 'method' => 'POST',
                 'params' => [
                     'id' => $id,
-                    'step' => $i
-                ]
+                    'step' => $i,
+                ],
             ]];
         }
 
         $response = $this->adminJson([
             'success' => true,
             'jobs' => $jobs,
-            'id' => $id
+            'id' => $id,
         ]);
         // set content-type to text/html, otherwise (when application/json is sent) chrome will complain in
         // Ext.form.Action.Submit and mark the submission as failed
@@ -881,7 +899,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/xliff-import-element", methods={"POST"})
+     * @Route("/xliff-import-element", name="pimcore_admin_translation_xliffimportelement", methods={"POST"})
      *
      * @param Request $request
      * @param ImportDataExtractorInterface $importDataExtractor
@@ -908,17 +926,17 @@ class TranslationController extends AdminController
 
             return $this->adminJson([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ]);
         }
 
         return $this->adminJson([
-            'success' => true
+            'success' => true,
         ]);
     }
 
     /**
-     * @Route("/word-export", methods={"POST"})
+     * @Route("/word-export", name="pimcore_admin_translation_wordexport", methods={"POST"})
      *
      * @param Request $request
      *
@@ -1005,73 +1023,59 @@ class TranslationController extends AdminController
                     );
                     $html = preg_replace('/<!--(.*)-->/Uis', '', $html);
 
-                    $dom = str_get_html($html);
-                    if ($dom) {
-
-                        // remove containers including their contents
-                        $elements = $dom->find(
-                            'form,script,style,noframes,noscript,object,area,mapm,video,audio,iframe,textarea,input,select,button,'
-                        );
-                        if ($elements) {
-                            foreach ($elements as $el) {
-                                $el->outertext = '';
-                            }
-                        }
-
-                        $clearText = function ($string) {
-                            $string = str_replace("\r\n", '', $string);
-                            $string = str_replace("\n", '', $string);
-                            $string = str_replace("\r", '', $string);
-                            $string = str_replace("\t", '', $string);
-                            $string = preg_replace('/&[a-zA-Z0-9]+;/', '', $string); // remove html entities
-                            $string = preg_replace('#[ ]+#', '', $string);
-
-                            return $string;
-                        };
-
-                        // remove empty tags (where it matters)
-                        $elements = $dom->find('a, li');
-                        if ($elements) {
-                            foreach ($elements as $el) {
-                                $string = $clearText($el->plaintext);
-                                if (empty($string)) {
-                                    $el->outertext = '';
-                                }
-                            }
-                        }
-
-                        // replace links => links get [Linktext]
-                        $elements = $dom->find('a');
-                        if ($elements) {
-                            foreach ($elements as $el) {
-                                $string = $clearText($el->plaintext);
-                                if (!empty($string)) {
-                                    $el->outertext = '[' . $el->plaintext . ']';
-                                } else {
-                                    $el->outertext = '';
-                                }
-                            }
-                        }
-
-                        $html = $dom->save();
-                        $dom->clear();
-                        unset($dom);
-
-                        // force closing tags (simple_html_dom doesn't seem to support this anymore)
-                        $doc = new \DOMDocument();
-                        libxml_use_internal_errors(true);
-                        $doc->loadHTML('<?xml encoding="UTF-8"><article>' . $html . '</article>');
-                        libxml_clear_errors();
-                        $html = $doc->saveHTML();
-
-                        $bodyStart = strpos($html, '<body>') + 6;
-                        $bodyEnd = strpos($html, '</body>');
-                        if ($bodyStart && $bodyEnd) {
-                            $html = substr($html, $bodyStart, $bodyEnd - $bodyStart);
-                        }
-
-                        $output .= $html;
+                    $dom = new Tool\DomCrawler($html);
+                    // remove containers including their contents
+                    $elements = $dom->filter('form, script, style, noframes, noscript, object, area, mapm, video, audio, iframe, textarea, input, select, button');
+                    foreach ($elements as $element) {
+                        $element->parentNode->removeChild($element);
                     }
+
+                    $clearText = function ($string) {
+                        $string = str_replace("\r\n", '', $string);
+                        $string = str_replace("\n", '', $string);
+                        $string = str_replace("\r", '', $string);
+                        $string = str_replace("\t", '', $string);
+                        $string = preg_replace('/&[a-zA-Z0-9]+;/', '', $string); // remove html entities
+                        $string = preg_replace('#[ ]+#', '', $string);
+
+                        return $string;
+                    };
+
+                    // remove empty tags (where it matters)
+                    // replace links => links get [Linktext]
+                    $elements = $dom->filter('a');
+                    foreach ($elements as $element) {
+                        $string = $clearText($element->textContent);
+                        if (!empty($string)) {
+                            $newNode = $element->ownerDocument->createTextNode('[' . $element->textContent . ']');
+
+                            $element->parentNode->replaceChild($newNode, $element);
+                        } else {
+                            $element->ownerDocument->textContent = '';
+                        }
+                    }
+
+                    if ($dom->count() > 0) {
+                        $html = $dom->html();
+                    }
+
+                    $dom->clear();
+                    unset($dom);
+
+                    // force closing tags
+                    $doc = new \DOMDocument();
+                    libxml_use_internal_errors(true);
+                    $doc->loadHTML('<?xml encoding="UTF-8"><article>' . $html . '</article>');
+                    libxml_clear_errors();
+                    $html = $doc->saveHTML();
+
+                    $bodyStart = strpos($html, '<body>') + 6;
+                    $bodyEnd = strpos($html, '</body>');
+                    if ($bodyStart && $bodyEnd) {
+                        $html = substr($html, $bodyStart, $bodyEnd - $bodyStart);
+                    }
+
+                    $output .= $html;
                 } elseif ($element instanceof DataObject\Concrete) {
                     $hasContent = false;
 
@@ -1143,7 +1147,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/word-export-download", methods={"GET"})
+     * @Route("/word-export-download", name="pimcore_admin_translation_wordexportdownload", methods={"GET"})
      *
      * @param Request $request
      *
@@ -1206,7 +1210,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/merge-item", methods={"PUT"})
+     * @Route("/merge-item", name="pimcore_admin_translation_mergeitem", methods={"PUT"})
      *
      * @param Request $request
      *
@@ -1218,9 +1222,12 @@ class TranslationController extends AdminController
 
         $dataList = json_decode($request->get('data'), true);
 
-        $classname = '\\Pimcore\\Model\\Translation\\' . ucfirst($translationType);
+        $domain = Translation::DOMAIN_DEFAULT;
+        if ($translationType == 'admin') {
+            $domain = Translation::DOMAIN_ADMIN;
+        }
         foreach ($dataList as $data) {
-            $t = $classname::getByKey($data['key'], true);
+            $t = Translation::getByKey($data['key'], $domain, true);
             $newValue = htmlspecialchars_decode($data['current']);
             $t->addTranslation($data['lg'], $newValue);
             $t->setModificationDate(time());
@@ -1235,7 +1242,7 @@ class TranslationController extends AdminController
     }
 
     /**
-     * @Route("/get-website-translation-languages", methods={"GET"})
+     * @Route("/get-website-translation-languages", name="pimcore_admin_translation_getwebsitetranslationlanguages", methods={"GET"})
      *
      * @param Request $request
      *

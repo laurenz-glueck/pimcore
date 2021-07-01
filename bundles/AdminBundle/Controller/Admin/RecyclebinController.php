@@ -1,33 +1,36 @@
 <?php
+
 /**
  * Pimcore
  *
  * This source file is available under two different licenses:
  * - GNU General Public License version 3 (GPLv3)
- * - Pimcore Enterprise License (PEL)
+ * - Pimcore Commercial License (PCL)
  * Full copyright and license information is available in
  * LICENSE.md which is distributed with this source code.
  *
- * @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
- * @license    http://www.pimcore.org/license     GPLv3 and PEL
+ *  @copyright  Copyright (c) Pimcore GmbH (http://www.pimcore.org)
+ *  @license    http://www.pimcore.org/license     GPLv3 and PCL
  */
 
 namespace Pimcore\Bundle\AdminBundle\Controller\Admin;
 
 use Pimcore\Bundle\AdminBundle\Controller\AdminController;
-use Pimcore\Controller\EventedControllerInterface;
+use Pimcore\Controller\KernelControllerEventInterface;
 use Pimcore\Model\Element;
 use Pimcore\Model\Element\Recyclebin;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
-use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
+use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\Routing\Annotation\Route;
 
-class RecyclebinController extends AdminController implements EventedControllerInterface
+/**
+ * @internal
+ */
+class RecyclebinController extends AdminController implements KernelControllerEventInterface
 {
     /**
-     * @Route("/recyclebin/list", methods={"POST"})
+     * @Route("/recyclebin/list", name="pimcore_admin_recyclebin_list", methods={"POST"})
      *
      * @param Request $request
      *
@@ -59,7 +62,7 @@ class RecyclebinController extends AdminController implements EventedControllerI
             $conditionFilters = [];
 
             if ($request->get('filterFullText')) {
-                $conditionFilters[] = 'path LIKE ' . $list->quote('%'.$request->get('filterFullText').'%');
+                $conditionFilters[] = 'path LIKE ' . $list->quote('%'. $list->escapeLike($request->get('filterFullText')) .'%');
             }
 
             $filters = $request->get('filter');
@@ -124,13 +127,20 @@ class RecyclebinController extends AdminController implements EventedControllerI
             }
 
             $items = $list->load();
+            $data = [];
+            if (is_array($items)) {
+                /** @var Recyclebin\Item $item */
+                foreach ($items as $item) {
+                    $data[] = $item->getObjectVars();
+                }
+            }
 
-            return $this->adminJson(['data' => $items, 'success' => true, 'total' => $list->getTotalCount()]);
+            return $this->adminJson(['data' => $data, 'success' => true, 'total' => $list->getTotalCount()]);
         }
     }
 
     /**
-     * @Route("/recyclebin/restore", methods={"POST"})
+     * @Route("/recyclebin/restore", name="pimcore_admin_recyclebin_restore", methods={"POST"})
      *
      * @param Request $request
      *
@@ -145,7 +155,7 @@ class RecyclebinController extends AdminController implements EventedControllerI
     }
 
     /**
-     * @Route("/recyclebin/flush", methods={"DELETE"})
+     * @Route("/recyclebin/flush", name="pimcore_admin_recyclebin_flush", methods={"DELETE"})
      *
      * @return JsonResponse
      */
@@ -158,7 +168,7 @@ class RecyclebinController extends AdminController implements EventedControllerI
     }
 
     /**
-     * @Route("/recyclebin/add", methods={"POST"})
+     * @Route("/recyclebin/add", name="pimcore_admin_recyclebin_add", methods={"POST"})
      *
      * @param Request $request
      *
@@ -166,30 +176,29 @@ class RecyclebinController extends AdminController implements EventedControllerI
      */
     public function addAction(Request $request)
     {
-        $element = Element\Service::getElementById($request->get('type'), $request->get('id'));
+        try {
+            $element = Element\Service::getElementById($request->get('type'), $request->get('id'));
 
-        if ($element) {
-            $type = Element\Service::getElementType($element);
-            $baseClass = Element\Service::getBaseClassNameForElement($type);
-            $listClass = '\\Pimcore\\Model\\' . $baseClass . '\\Listing';
-            $list = new $listClass();
-            $list->setCondition((($type == 'object') ? 'o_' : '') . 'path LIKE ' . $list->quote($element->getRealFullPath() . '/%'));
-            $children = $list->getTotalCount();
+            if ($element) {
+                $list = $element::getList(['unpublished' => true]);
+                $list->setCondition((($request->get('type') === 'object') ? 'o_' : '') . 'path LIKE ' . $list->quote($list->escapeLike($element->getRealFullPath()) . '/%'));
+                $children = $list->getTotalCount();
 
-            if ($children <= 100) {
-                Recyclebin\Item::create($element, $this->getAdminUser());
+                if ($children <= 100) {
+                    Recyclebin\Item::create($element, $this->getAdminUser());
+                }
             }
-
-            return $this->adminJson(['success' => true]);
-        } else {
-            return $this->adminJson(['success' => false]);
+        } catch (\Exception $e) {
+            return $this->adminJson(['success' => false, 'message' => $e->getMessage()]);
         }
+
+        return $this->adminJson(['success' => true]);
     }
 
     /**
-     * @param FilterControllerEvent $event
+     * @param ControllerEvent $event
      */
-    public function onKernelController(FilterControllerEvent $event)
+    public function onKernelControllerEvent(ControllerEvent $event)
     {
         $isMasterRequest = $event->isMasterRequest();
         if (!$isMasterRequest) {
@@ -203,13 +212,5 @@ class RecyclebinController extends AdminController implements EventedControllerI
 
         // check permissions
         $this->checkActionPermission($event, 'recyclebin', ['addAction']);
-    }
-
-    /**
-     * @param FilterResponseEvent $event
-     */
-    public function onKernelResponse(FilterResponseEvent $event)
-    {
-        // nothing to do
     }
 }
